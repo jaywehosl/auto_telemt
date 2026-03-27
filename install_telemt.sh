@@ -14,20 +14,20 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 # 2. Сбор данных от пользователя
-read -p "Введите порт для прокси (по умолчанию 443): " PROXY_PORT
+read -p "Введите порт для прокси (по умолчанию 443): " PROXY_PORT </dev/tty
 PROXY_PORT=${PROXY_PORT:-443}
 
-read -p "Введите домен для маскировки (SNI, например google.com): " TLS_DOMAIN
+read -p "Введите домен для маскировки (SNI, например google.com): " TLS_DOMAIN </dev/tty
 TLS_DOMAIN=${TLS_DOMAIN:-google.com}
 
-read -p "Сколько пользователей создать? " USER_COUNT
+read -p "Сколько пользователей создать? " USER_COUNT </dev/tty
 if ! [[ "$USER_COUNT" =~ ^[0-9]+$ ]] ; then
    echo -e "${RED}Ошибка: введите число.${NC}"; exit 1
 fi
 
 USER_NAMES=()
 for ((i=1; i<=USER_COUNT; i++)); do
-    read -p "Введите имя для пользователя #$i: " UNAME
+    read -p "Введите имя для пользователя #$i: " UNAME </dev/tty
     USER_NAMES+=("$UNAME")
 done
 
