@@ -8,17 +8,17 @@ SERVICE_FILE="/etc/systemd/system/telemt.service"
 CLI_NAME="/usr/local/bin/telemt"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
-# Цветовая схема
-# 148 - это максимально близкий к #9ACD32 (YellowGreen) в палитре 256 цветов
-MAIN_COLOR='\033[1;38;5;148m' 
+# Цветовая схема (Жирный + Цвет #9ACD32)
+BOLD='\033[1m'
+MAIN_COLOR='\033[1;38;5;148m'
 GREEN='\033[1;32m'
 RED='\033[1;31m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # Сброс цвета
+NC='\033[0m' # Сброс
 
 # Проверка root
 if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}Ошибка: Запустите скрипт от имени root (через sudo)${NC}"
+  echo -e "${RED}Ошибка: Запустите скрипт от имени root${NC}"
   exit 1
 fi
 
@@ -31,9 +31,9 @@ fi
 # --- ФУНКЦИИ ---
 
 show_links() {
-    echo -e "\n${MAIN_COLOR}=== ВАШИ ССЫЛКИ ДЛЯ ПОДКЛЮЧЕНИЯ ===${NC}"
+    echo -e "\n${BOLD}${MAIN_COLOR}=== ВАШИ ССЫЛКИ ДЛЯ ПОДКЛЮЧЕНИЯ ===${NC}"
     if [ ! -f "$CONF_FILE" ]; then
-        echo -e "${RED}Ошибка: Файл конфигурации не найден. Сначала установите прокси.${NC}"
+        echo -e "${RED}Ошибка: Сначала установите прокси (пункт 1).${NC}"
         return
     fi
     
@@ -43,31 +43,31 @@ show_links() {
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r '.data[].links.tls[]' 2>/dev/null)
     
     if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-        echo -e "${YELLOW}Внимание: Ссылки еще не сгенерированы. Подождите пару секунд...${NC}"
+        echo -e "${YELLOW}Ожидание генерации ссылок (5 сек)...${NC}"
     else
         for link in $LINKS; do
             if [[ $link == *"server=0.0.0.0"* ]]; then
-                [ -n "$IP4" ] && echo -e "${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"
+                [ -n "$IP4" ] && echo -e "${BOLD}${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"
             elif [[ $link == *"server=::"* ]]; then
-                [ -n "$IP6" ] && echo -e "${MAIN_COLOR}${link//::/$IP6}${NC}"
+                [ -n "$IP6" ] && echo -e "${BOLD}${MAIN_COLOR}${link//::/$IP6}${NC}"
             else
-                echo -e "${MAIN_COLOR}$link${NC}"
+                echo -e "${BOLD}${MAIN_COLOR}$link${NC}"
             fi
         done
     fi
 }
 
 install_telemt() {
-    echo -e "\n${MAIN_COLOR}--- Настройка и установка Telemt ---${NC}"
+    echo -e "\n${BOLD}${MAIN_COLOR}--- Настройка и установка Telemt ---${NC}"
     read -p "Укажите порт (по умолчанию 443): " PROXY_PORT
     PROXY_PORT=${PROXY_PORT:-443}
     read -p "Укажите домен маскировки (SNI, напр. google.com): " TLS_DOMAIN
     TLS_DOMAIN=${TLS_DOMAIN:-google.com}
 
-    echo -e "${MAIN_COLOR}Установка пакетов...${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}Установка пакетов...${NC}"
     apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq
     
-    echo -e "${MAIN_COLOR}Загрузка бинарника...${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}Загрузка бинарника...${NC}"
     ARCH=$(uname -m)
     LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
     URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
@@ -111,6 +111,7 @@ Restart=on-failure
 LimitNOFILE=65536
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -127,33 +128,33 @@ EOF
 # --- МЕНЮ ---
 while true; do
     clear
-    echo -e "${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
-    echo -e "${MAIN_COLOR}║         МЕНЕДЖЕР TELEMT (CLI)          ║${NC}"
-    echo -e "${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}║         МЕНЕДЖЕР TELEMT (CLI)          ║${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
     
     if [ ! -f "$SERVICE_FILE" ]; then
-        STATUS="${RED}Не установлен${NC}"
+        STATUS="${BOLD}${RED}Не установлен${NC}"
     elif systemctl is-active --quiet telemt; then
-        STATUS="${GREEN}Работает (Active)${NC}"
+        STATUS="${BOLD}${GREEN}Работает (Active)${NC}"
     else
-        STATUS="${YELLOW}Остановлен (Inactive)${NC}"
+        STATUS="${BOLD}${YELLOW}Остановлен (Inactive)${NC}"
     fi
 
     echo -e "  Статус: $STATUS"
-    echo -e "${MAIN_COLOR}------------------------------------------${NC}"
-    echo -e "  ${MAIN_COLOR}1)${NC} УСТАНОВИТЬ Telemt"
-    echo -e "  ${MAIN_COLOR}2)${NC} Проверить статус (лог)"
-    echo -e "  ${MAIN_COLOR}3)${NC} Показать ссылки"
-    echo -e "  ${MAIN_COLOR}4)${NC} Добавить пользователя"
-    echo -e "  ${MAIN_COLOR}5)${NC} Удалить пользователя"
-    echo -e "  ${MAIN_COLOR}6)${NC} Изменить порт"
-    echo -e "  ${MAIN_COLOR}7)${NC} Изменить SNI (домен)"
-    echo -e "  ${MAIN_COLOR}8)${NC} Перезапустить прокси"
-    echo -e "  ${MAIN_COLOR}9)${NC} Остановить прокси"
-    echo -e "  ${MAIN_COLOR}10)${NC} ОБНОВИТЬ МЕНЕДЖЕР"
-    echo -e "  ${MAIN_COLOR}11)${NC} УДАЛИТЬ ВСЁ"
-    echo -e "  ${MAIN_COLOR}0)${NC} Выход"
-    echo -e "${MAIN_COLOR}------------------------------------------${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}------------------------------------------${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}1)${NC} ${BOLD}УСТАНОВИТЬ Telemt${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}2)${NC} ${BOLD}Проверить статус (лог)${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}3)${NC} ${BOLD}Показать ссылки${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}4)${NC} ${BOLD}Добавить пользователя${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}5)${NC} ${BOLD}Удалить пользователя${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}6)${NC} ${BOLD}Изменить порт${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}7)${NC} ${BOLD}Изменить SNI (домен)${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}8)${NC} ${BOLD}Перезапустить прокси${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}9)${NC} ${BOLD}Остановить прокси${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}10)${NC} ${BOLD}ОБНОВИТЬ МЕНЕДЖЕР${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}11)${NC} ${BOLD}УДАЛИТЬ ВСЁ (Uninstall)${NC}"
+    echo -e "  ${BOLD}${MAIN_COLOR}0)${NC} ${BOLD}Выход${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}------------------------------------------${NC}"
     read -p "Выберите действие: " choice
 
     case $choice in
@@ -172,7 +173,7 @@ while true; do
             read -p "Нажмите Enter..." ;;
         5)
             if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}Конфиг не найден.${NC}"; else
-                echo "Текущие пользователи:"
+                echo -e "${BOLD}Текущие пользователи:${NC}"
                 grep -A 50 "\[access.users\]" $CONF_FILE | grep "=" | awk '{print $1}'
                 read -p "Имя для удаления: " UNAME
                 [ -n "$UNAME" ] && sed -i "/^$UNAME =/d" $CONF_FILE && systemctl restart telemt && echo -e "${YELLOW}Удален.${NC}"
@@ -192,8 +193,17 @@ while true; do
         8) systemctl restart telemt && echo "Перезапущено"; sleep 1 ;;
         9) systemctl stop telemt && echo "Остановлено"; sleep 1 ;;
         10)
-            echo "Обновление..."
-            curl -sSL "$REPO_URL" -o "$CLI_NAME" && chmod +x "$CLI_NAME" && echo -e "${GREEN}Обновлено!${NC}" && exit 0 ;;
+            echo "Обновление из GitHub (принудительно)..."
+            # Добавляем ?v=TIMESTAMP чтобы обойти кэш GitHub
+            if curl -sSL "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
+                chmod +x "$CLI_NAME"
+                echo -e "${GREEN}Менеджер обновлен! Перезапуск...${NC}"
+                sleep 1
+                exec "$CLI_NAME"
+            else
+                echo -e "${RED}Ошибка при скачивании.${NC}"
+            fi
+            ;;
         11)
             read -p "Удалить всё? (y/n): " confirm
             if [[ $confirm == "y" ]]; then
