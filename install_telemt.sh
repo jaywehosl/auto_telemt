@@ -3,7 +3,7 @@
 # ==========================================================
 # ПАРАМЕТРЫ И ВЕРСИЯ
 # ==========================================================
-CURRENT_VERSION="1.1.5"
+CURRENT_VERSION="1.1.6"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === ЦВЕТОВАЯ ПАЛИТРА ===
@@ -43,7 +43,7 @@ CLI_NAME="/usr/local/bin/telemt"
 
 if [ "$EUID" -ne 0 ]; then echo -e "${RED}Ошибка: Нужен root${NC}"; exit 1; fi
 
-# --- ФУНКЦИИ ---
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 
 wait_user() {
     printf "\n${ORANGE}${BOLD}$L_MSG_WAIT_ENTER${NC}"
@@ -69,11 +69,19 @@ check_updates() {
     else UPDATE_INFO=""; fi
 }
 
+# Функция получения чистого списка имен пользователей из TOML
+get_user_list() {
+    if [ -f "$CONF_FILE" ]; then
+        # Берем всё после секции [access.users], ищем строки с '=', берем первое слово
+        sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
+    fi
+}
+
 show_links() {
     local target_user="$1"
     [ -z "$target_user" ] && return
     echo -e "\n${BOLD}${MAIN_COLOR}=== ССЫЛКИ ДЛЯ: $target_user ===${NC}"
-    sleep 2
+    sleep 1.5
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
@@ -88,7 +96,6 @@ show_links() {
     fi
 }
 
-# Функция очистки только прокси (без удаления менеджера)
 cleanup_proxy() {
     echo -e "\n${BOLD}${SKY_BLUE}--- Удаление компонентов прокси ---${NC}"
     run_step "Остановка службы" "systemctl stop telemt"
@@ -97,9 +104,9 @@ cleanup_proxy() {
     run_step "Удаление конфигурации" "rm -rf $CONF_DIR"
     run_step "Удаление файлов пользователя" "rm -rf /opt/telemt"
     run_step "Удаление системного юнита" "rm -f $SERVICE_FILE"
-    run_step "Удаление пользователя" "userdel telemt"
+    run_step "Удаление пользователя" "userdel telemt 2>/dev/null || true"
     run_step "Перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}Прокси успешно удален. Менеджер остается в системе.${NC}"
+    echo -e "${GREEN}${BOLD}Прокси успешно удален.${NC}"
 }
 
 install_telemt() {
@@ -113,6 +120,7 @@ install_telemt() {
     ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
     URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
     run_step "Загрузка бинарника" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
+    
     CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null || true; mkdir -p $CONF_DIR; 
     cat <<EOF > $CONF_FILE
 [general]
@@ -128,13 +136,16 @@ enabled = true
 listen = \"127.0.0.1:9091\"
 [censorship]
 tls_domain = \"$P_SNI\"
+
 [access.user_max_unique_ips]
 $P_USER = $P_LIM
+
 [access.users]
 $P_USER = \"\$(openssl rand -hex 16)\"
 EOF
     chown -R telemt:telemt $CONF_DIR"
     run_step "Создание конфига" "$CMD_CONF"
+    
     CMD_SRV="cat <<EOF > $SERVICE_FILE
 [Unit]
 Description=Telemt Proxy
@@ -198,7 +209,7 @@ submenu_users() {
         read -p "$(echo -e $ORANGE"Выберите действие: "$NC)" subchoice
         case $subchoice in
             1) while true; do
-                mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
+                mapfile -t USERS < <(get_user_list)
                 clear; echo -e "${BOLD}${MAIN_COLOR}=== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ===${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
@@ -216,25 +227,38 @@ submenu_users() {
                     echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
                     systemctl restart telemt && echo -e "${GREEN}Добавлен${NC}"; wait_user
                 fi ;;
-            3) mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
+            3) while true; do
+                mapfile -t USERS < <(get_user_list)
+                clear; echo -e "${BOLD}${MAIN_COLOR}=== УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ===${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
                 read -p "$(echo -e $ORANGE"Номер для удаления: "$NC)" U_IDX
+                [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                    DEL_NAME="${USERS[$((U_IDX-1))]}"; sed -i "/^$DEL_NAME =/d" $CONF_FILE
-                    systemctl restart telemt && echo -e "${RED}Удален${NC}"; wait_user
-                fi ;;
-            4) mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
+                    DEL_NAME="${USERS[$((U_IDX-1))]}"
+                    sed -i "/^$DEL_NAME =/d" $CONF_FILE
+                    systemctl restart telemt && echo -e "${RED}Удален: $DEL_NAME${NC}"
+                    wait_user
+                fi
+            done ;;
+            4) while true; do
+                mapfile -t USERS < <(get_user_list)
+                clear; echo -e "${BOLD}${MAIN_COLOR}=== ЛИМИТЫ IP АДРЕСОВ ===${NC}"
                 for i in "${!USERS[@]}"; do
+                    # Лимит берем строго из его секции
                     CUR_LIM=$(grep "^${USERS[$i]} =" $CONF_FILE | grep -v "\"" | awk '{print $3}')
                     printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (Лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
                 done
-                read -p "$(echo -e $ORANGE"Номер для лимита: "$NC)" U_IDX
+                printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
+                read -p "$(echo -e $ORANGE"Номер для смены лимита: "$NC)" U_IDX
+                [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"Новый лимит IP: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
                     systemctl restart telemt && echo -e "${GREEN}Обновлено${NC}"; wait_user
-                fi ;;
+                fi
+            done ;;
             0) break ;;
         esac
     done
