@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.2.5"
+CURRENT_VERSION="1.2.6"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -97,7 +97,7 @@ show_links() {
 }
 
 cleanup_proxy() {
-    echo -e "\n${BOLD}${SKY_BLUE}удаляем компоненты Telemt...${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"
     run_step "остановка службы" "systemctl stop telemt"
     run_step "отключение автозагрузки" "systemctl disable telemt"
     run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
@@ -106,7 +106,7 @@ cleanup_proxy() {
     run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
     run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
     run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}Telemt успешно удалён${NC}"
+    echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"
 }
 
 install_telemt() {
@@ -182,7 +182,7 @@ submenu_service() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}остановить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) install_telemt; wait_user ;;
             2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
@@ -204,7 +204,7 @@ submenu_users() {
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удаление пользователей${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}настроить лимит IP${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) while true; do
                 mapfile -t USERS < <(get_user_list)
@@ -279,7 +279,7 @@ submenu_settings() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) systemctl status telemt; wait_user ;;
             2) read -p "$(echo -e $ORANGE"введите новый порт: "$NC)" N_PORT
@@ -308,14 +308,14 @@ submenu_manager() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить сервис Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) echo -e "${SKY_BLUE}обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                sync; chmod +x "$CLI_NAME"; exec "$CLI_NAME";
                else echo -e "${RED}ошибка${NC}"; wait_user; fi ;;
-            2) read -p "$(echo -e ${RED}"внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(yes/no):"$NC)" confirm
+            2) read -p "$(echo -e ${RED}"внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                [[ $confirm == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "$(echo -e {RED}"внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(yes/no):"$NC)" confirm
+            3) read -p "$(echo -e ${RED}"внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ $confirm == "y" ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
             0) break ;;
         esac
@@ -332,7 +332,7 @@ while true; do
     if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
     else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
-    printf "  %s %b\n" "$L_STATUS_LABEL" "$STATUS"
+    printf "  %s %b\n" "   $L_STATUS_LABEL" "$STATUS"
     printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_MAIN_1${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_MAIN_2${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"
