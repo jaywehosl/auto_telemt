@@ -3,14 +3,14 @@
 # ==========================================================
 # ПАРАМЕТРЫ И ВЕРСИЯ
 # ==========================================================
-CURRENT_VERSION="1.1.3"
+CURRENT_VERSION="1.1.4"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === ЦВЕТОВАЯ ПАЛИТРА ===
 BOLD=$(tput bold)
 NC='\033[0m' 
-MAIN_COLOR='\033[38;5;148m'   # Желто-зеленый (Рамки/Пункты)
-ORANGE='\033[1;38;5;214m'     # Оранжевый (Вопросы/Ввод)
+MAIN_COLOR='\033[38;5;148m'   # Желто-зеленый (Рамки)
+ORANGE='\033[1;38;5;214m'     # Оранжевый (Вопросы)
 SKY_BLUE='\033[1;38;5;81m'    # Голубой (Процессы)
 GREEN='\033[1;32m'            # Зеленый (Успех)
 RED='\033[1;31m'              # Красный (Ошибка)
@@ -29,31 +29,20 @@ L_MAIN_3="Настройки прокси (Порт/SNI/Лог)"
 L_MAIN_4="Обслуживание менеджера"
 L_MAIN_0="Выход"
 
-L_USR_1="Список пользователей и ссылки"
-L_USR_2="Добавить нового пользователя"
-L_USR_3="Удалить пользователя"
-L_USR_4="Настроить лимит IP адресов"
-
 L_PROMPT_BACK="Назад"
 L_MSG_WAIT_ENTER="Нажмите [Enter] для продолжения..."
 L_ERR_NOT_INSTALLED="Ошибка: Прокси еще не установлен в системе!"
-L_MSG_UPDATE_OK="Менеджер успешно обновлен! Перезапуск..."
 # ==========================================================
 
-# Константы путей
+# Пути
 BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
 CONF_FILE="$CONF_DIR/telemt.toml"
 SERVICE_FILE="/etc/systemd/system/telemt.service"
 CLI_NAME="/usr/local/bin/telemt"
 
-# Проверка root
-if [ "$EUID" -ne 0 ]; then
-  echo -e "${RED}Ошибка: Запустите скрипт от root${NC}"
-  exit 1
-fi
+if [ "$EUID" -ne 0 ]; then echo -e "${RED}Ошибка: Нужен root${NC}"; exit 1; fi
 
-# Регистрация telemt
 if [ ! -f "$CLI_NAME" ]; then
     curl -sSL -f "$REPO_URL" -o "$CLI_NAME" 2>/dev/null || cp "$0" "$CLI_NAME"
     chmod +x "$CLI_NAME"
@@ -62,14 +51,14 @@ fi
 # --- ФУНКЦИИ ---
 
 wait_user() {
-    echo -e "\n${YELLOW}$L_MSG_WAIT_ENTER${NC}"
+    printf "\n${ORANGE}${BOLD}$L_MSG_WAIT_ENTER${NC}"
     read -r
 }
 
 run_step() {
     local msg="$1"
     local cmd="$2"
-    printf "  ${BOLD}${SKY_BLUE}*${NC} %-40s " "$msg..."
+    printf "  ${BOLD}${SKY_BLUE}*${NC} %-35s " "$msg..."
     if eval "$cmd" > /dev/null 2>&1; then
         printf "${GREEN}[ГОТОВО]${NC}\n"
     else
@@ -82,20 +71,23 @@ check_updates() {
     REMOTE_VER=$(curl -sSL -f --connect-timeout 2 --max-time 3 "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
         UPDATE_INFO=" \033[1;33m(Доступно v$REMOTE_VER)\033[0m"
-    else
-        UPDATE_INFO=""
-    fi
+    else UPDATE_INFO=""; fi
 }
 
 show_links() {
     local target_user="$1"
     [ -z "$target_user" ] && return
     echo -e "\n${BOLD}${MAIN_COLOR}=== ССЫЛКИ ДЛЯ: $target_user ===${NC}"
+    
+    # Небольшая пауза чтобы API успело проснуться
+    sleep 2
+    
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
+    
     if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-        echo -e "${YELLOW}Ссылки еще не сгенерированы. Попробуйте через 5 сек.${NC}"
+        echo -e "${YELLOW}API пока не выдало ссылки. Попробуйте через 5 сек в меню пользователей.${NC}"
     else
         for link in $LINKS; do
             if [[ $link == *"server=0.0.0.0"* ]]; then [ -n "$IP4" ] && echo -e "${BOLD}${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"
@@ -105,31 +97,22 @@ show_links() {
     fi
 }
 
-# --- ПОДМЕНЮ 1: СЕРВИС ---
-submenu_service() {
-    while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║           УПРАВЛЕНИЕ СЕРВИСОМ          ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}УСТАНОВИТЬ Telemt (с нуля)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}Перезапустить прокси${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}Остановить прокси${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        echo -e "${MAIN_COLOR}------------------------------------------${NC}"
-        read -p "$(echo -e $ORANGE"Выберите действие: "$NC)" subchoice
-        case $subchoice in
-            1)  read -p "$(echo -e $ORANGE"Укажите порт (443): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
-                read -p "$(echo -e $ORANGE"Укажите SNI (google.com): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
-                read -p "$(echo -e $ORANGE"Имя пользователя (admin): "$NC)" P_USER; P_USER=${P_USER:-admin}
-                read -p "$(echo -e $ORANGE"Лимит IP (0 - безлимит): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
-                echo -e ""
-                run_step "Установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
-                ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
-                URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
-                run_step "Загрузка бинарника" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
-                useradd -d /opt/telemt -m -r -U telemt 2>/dev/null; mkdir -p $CONF_DIR
-                cat <<EOF > $CONF_FILE
+install_telemt() {
+    echo -e "\n${BOLD}${MAIN_COLOR}--- Настройка и установка Telemt ---${NC}"
+    read -p "$(echo -e $ORANGE"Укажите порт (443): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
+    read -p "$(echo -e $ORANGE"Укажите SNI (google.com): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
+    read -p "$(echo -e $ORANGE"Имя пользователя (admin): "$NC)" P_USER; P_USER=${P_USER:-admin}
+    read -p "$(echo -e $ORANGE"Лимит IP (0 - безлимит): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
+    echo -e ""
+
+    run_step "Установка системных пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
+    
+    ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
+    URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
+    run_step "Загрузка бинарника прокси" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
+    
+    CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null || true; mkdir -p $CONF_DIR; 
+    cat <<EOF > $CONF_FILE
 [general]
 use_middle_proxy = false
 [general.modes]
@@ -140,16 +123,18 @@ tls = true
 port = $P_PORT
 [server.api]
 enabled = true
-listen = "127.0.0.1:9091"
+listen = \"127.0.0.1:9091\"
 [censorship]
-tls_domain = "$P_SNI"
+tls_domain = \"$P_SNI\"
 [access.user_max_unique_ips]
 $P_USER = $P_LIM
 [access.users]
-$P_USER = "$(openssl rand -hex 16)"
+$P_USER = \"\$(openssl rand -hex 16)\"
 EOF
-                chown -R telemt:telemt $CONF_DIR
-                cat <<EOF > $SERVICE_FILE
+    chown -R telemt:telemt $CONF_DIR"
+    run_step "Создание конфигурации" "$CMD_CONF"
+
+    CMD_SRV="cat <<EOF > $SERVICE_FILE
 [Unit]
 Description=Telemt Proxy
 After=network-online.target
@@ -163,20 +148,41 @@ Restart=on-failure
 LimitNOFILE=65536
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
-EOF
-                run_step "Настройка службы" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
-                echo -e "${GREEN}Установка завершена!${NC}"
-                wait_user ;;
-            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}Ок${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+EOF"
+    run_step "Настройка Systemd службы" "$CMD_SRV"
+
+    run_step "Запуск прокси-сервера" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
+
+    echo -e "\n${BOLD}${GREEN}Установка завершена успешно!${NC}"
+    show_links "$P_USER"
+}
+
+# --- ПОДМЕНЮ ---
+
+submenu_service() {
+    while true; do
+        clear
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║           УПРАВЛЕНИЕ СЕРВИСОМ          ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}УСТАНОВИТЬ Telemt (с нуля)${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}Перезапустить прокси${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}Остановить прокси${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        echo -e "${MAIN_COLOR}------------------------------------------${NC}"
+        read -p "$(echo -e $ORANGE"Выберите действие: "$NC)" subchoice
+        case $subchoice in
+            1) install_telemt; wait_user ;;
+            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}Перезапущено${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}Остановлено${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             0) break ;;
         esac
     done
 }
 
-# --- ПОДМЕНЮ 2: ПОЛЬЗОВАТЕЛИ ---
 submenu_users() {
     while true; do
         clear
@@ -235,7 +241,6 @@ submenu_users() {
     done
 }
 
-# --- ПОДМЕНЮ 3: НАСТРОЙКИ ---
 submenu_settings() {
     while true; do
         clear
@@ -266,7 +271,6 @@ submenu_settings() {
     done
 }
 
-# --- ПОДМЕНЮ 4: ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА ---
 submenu_manager() {
     check_updates
     while true; do
@@ -319,6 +323,6 @@ while true; do
         3) submenu_settings ;;
         4) submenu_manager ;;
         0) exit 0 ;;
-        *) sleep 1 ;;
+        *) sleep 0.5 ;;
     esac
 done
