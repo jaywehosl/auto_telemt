@@ -70,13 +70,11 @@ fi
 
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 
-# Пауза
 wait_user() {
     echo -e "\n${YELLOW}$L_MSG_WAIT_ENTER${NC}"
     read -r
 }
 
-# Функция для «чистого» выполнения шага
 run_step() {
     local msg="$1"
     local cmd="$2"
@@ -89,7 +87,6 @@ run_step() {
     fi
 }
 
-# Проверка обновлений
 check_updates() {
     REMOTE_VER=$(curl -sSL "${REPO_URL}?v=$(date +%s)" | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
@@ -129,15 +126,12 @@ install_telemt() {
     read -p "SNI домен (google.com): " P_SNI; P_SNI=${P_SNI:-google.com}
     echo -e ""
 
-    # 1. Пакеты (Подавляем окна needrestart)
     run_step "$L_STEP_PKG" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
     
-    # 2. Бинарник
     ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
     URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
     run_step "$L_STEP_BIN" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
     
-    # 3. Юзер и конфиг
     CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null; mkdir -p $CONF_DIR; 
     cat <<EOF > $CONF_FILE
 [general]
@@ -159,7 +153,6 @@ EOF
     chown -R telemt:telemt $CONF_DIR"
     run_step "$L_STEP_CONF" "$CMD_CONF"
 
-    # 4. Сервис
     CMD_SRV="cat <<EOF > $SERVICE_FILE
 [Unit]
 Description=Telemt Proxy
@@ -180,7 +173,6 @@ WantedBy=multi-user.target
 EOF"
     run_step "$L_STEP_SRV" "$CMD_SRV"
 
-    # 5. Запуск
     run_step "$L_STEP_START" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
 
     echo -e "\n${GREEN}Установка завершена успешно!${NC}"
@@ -195,7 +187,8 @@ check_updates
 while true; do
     clear
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║         %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
+    # Центрируем заголовок с учетом версии
+    printf "${BOLD}${MAIN_COLOR}║        %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
     if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
@@ -270,7 +263,8 @@ while true; do
             wait_user ;;
         10)
             echo "Обновление из GitHub..."
-            if curl -sSL "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
+            if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
+                sync # Принудительно сбрасываем буфер записи на диск
                 chmod +x "$CLI_NAME"
                 echo -e "${GREEN}$L_MSG_UPDATE_OK${NC}"
                 sleep 1; exec "$CLI_NAME"
