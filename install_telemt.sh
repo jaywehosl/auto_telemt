@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.1"
+CURRENT_VERSION="1.3.2"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -117,7 +117,7 @@ install_telemt() {
     read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(возможно использовать любой валидный SNI): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
     
     while true; do
-        read -p "$(echo -e $SKY_BLUE"         введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
+        read -p "$(echo -e $SKY_BLUE"  введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
         if [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]]; then
             break
         else
