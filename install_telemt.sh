@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# === ПАРАМЕТРЫ ВЕРСИИ ===
+CURRENT_VERSION="1.0.1"
+
 # Константы путей
 BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
@@ -8,7 +11,7 @@ SERVICE_FILE="/etc/systemd/system/telemt.service"
 CLI_NAME="/usr/local/bin/telemt"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
-# Цветовая схема (Жирный шрифт через tput + YellowGreen)
+# Цветовая схема (Жирный шрифт + YellowGreen)
 if [[ -t 1 ]]; then
     BOLD=$(tput bold)
     NORMAL=$(tput sgr0)
@@ -17,7 +20,6 @@ else
     NORMAL=""
 fi
 
-# Наш фирменный цвет #9ACD32 (ANSI 148)
 MAIN_COLOR='\033[38;5;148m'
 GREEN='\033[1;32m'
 RED='\033[1;31m'
@@ -30,11 +32,21 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Регистрация команды 'telemt'
+# Регистрация команды 'telemt' в системе
 if [ ! -f "$CLI_NAME" ]; then
     curl -sSL "$REPO_URL" -o "$CLI_NAME" 2>/dev/null || cp "$0" "$CLI_NAME"
     chmod +x "$CLI_NAME"
 fi
+
+# Функция проверки обновлений
+check_updates() {
+    REMOTE_VER=$(curl -sSL "${REPO_URL}?v=$(date +%s)" | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
+    if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
+        UPDATE_TEXT=" ${YELLOW}(Доступно обновление до v$REMOTE_VER)${NC}"
+    else
+        UPDATE_TEXT=""
+    fi
+}
 
 # --- ФУНКЦИИ ---
 
@@ -51,7 +63,7 @@ show_links() {
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r '.data[].links.tls[]' 2>/dev/null)
     
     if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-        echo -e "${YELLOW}Ожидание генерации ссылок (5 сек)...${NC}"
+        echo -e "${YELLOW}Ожидание генерации ссылок...${NC}"
     else
         for link in $LINKS; do
             if [[ $link == *"server=0.0.0.0"* ]]; then
@@ -72,10 +84,8 @@ install_telemt() {
     read -p "Укажите домен маскировки (SNI, напр. google.com): " TLS_DOMAIN
     TLS_DOMAIN=${TLS_DOMAIN:-google.com}
 
-    echo -e "${BOLD}${MAIN_COLOR}Установка пакетов...${NC}"
     apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq
     
-    echo -e "${BOLD}${MAIN_COLOR}Загрузка бинарника...${NC}"
     ARCH=$(uname -m)
     LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
     URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
@@ -133,12 +143,14 @@ EOF
     show_links
 }
 
+# Предварительная проверка обновлений при запуске
+check_updates
+
 # --- МЕНЮ ---
 while true; do
     clear
-    # Используем printf для точного контроля стилей
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║         МЕНЕДЖЕР TELEMT (CLI)          ║${NC}\n"
+    printf "${BOLD}${MAIN_COLOR}║         МЕНЕДЖЕР TELEMT (v$CURRENT_VERSION)        ║${NC}\n"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
     if [ ! -f "$SERVICE_FILE" ]; then
@@ -152,25 +164,18 @@ while true; do
     printf "  Статус: %b\n" "$STATUS"
     printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
     
-    # Отрисовка пунктов меню
-    menu_items=(
-        "УСТАНОВИТЬ Telemt"
-        "Проверить статус (лог)"
-        "Показать ссылки"
-        "Добавить пользователя"
-        "Удалить пользователя"
-        "Изменить порт"
-        "Изменить SNI (домен)"
-        "Перезапустить прокси"
-        "Остановить прокси"
-        "ОБНОВИТЬ МЕНЕДЖЕР"
-        "УДАЛИТЬ ВСЁ (Uninstall)"
-    )
-
-    for i in "${!menu_items[@]}"; do
-        printf "  ${BOLD}${MAIN_COLOR}%2d)${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${menu_items[$i]}"
-    done
-    printf "  ${BOLD}${MAIN_COLOR} 0)${NC} ${BOLD}Выход${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}УСТАНОВИТЬ Telemt${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}Проверить статус (лог)${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}Показать ссылки${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}Добавить пользователя${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 5 -${NC} ${BOLD}Удалить пользователя${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 6 -${NC} ${BOLD}Изменить порт${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 7 -${NC} ${BOLD}Изменить SNI (домен)${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 8 -${NC} ${BOLD}Перезапустить прокси${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 9 -${NC} ${BOLD}Остановить прокси${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR}10 -${NC} ${BOLD}ОБНОВИТЬ МЕНЕДЖЕР${UPDATE_TEXT}${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR}11 -${NC} ${BOLD}УДАЛИТЬ ВСЁ (Uninstall)${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Выход${NC}\n"
     printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
     
     read -p "Выберите действие: " choice
@@ -214,11 +219,13 @@ while true; do
             echo "Обновление из GitHub..."
             if curl -sSL "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                 chmod +x "$CLI_NAME"
-                echo -e "${GREEN}Менеджер обновлен!${NC}"
+                echo -e "${GREEN}Менеджер успешно обновлен!${NC}"
                 sleep 1
+                # Рестарт скрипта
                 exec "$CLI_NAME"
             else
                 echo -e "${RED}Ошибка при скачивании.${NC}"
+                read -p "Enter..."
             fi
             ;;
         11)
