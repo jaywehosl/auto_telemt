@@ -96,7 +96,7 @@ run_step() {
 check_updates() {
     REMOTE_VER=$(curl -sSL -f "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
-        UPDATE_INFO=" \033[1;33m(Доступно v$REMOTE_VER)\033[0m"
+        UPDATE_INFO=" (Доступно v$REMOTE_VER)"
     else
         UPDATE_INFO=""
     fi
@@ -188,7 +188,7 @@ EOF"
     show_links "$P_USER"
 }
 
-# Предварительная проверка
+# Предварительная проверка обновлений
 check_updates
 
 # --- ЦИКЛ МЕНЮ ---
@@ -213,7 +213,14 @@ while true; do
     printf "  ${BOLD}${MAIN_COLOR} 7 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_7"
     printf "  ${BOLD}${MAIN_COLOR} 8 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_8"
     printf "  ${BOLD}${MAIN_COLOR} 9 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_9"
-    printf "  ${BOLD}${MAIN_COLOR}10 -${NC} ${BOLD}%s%b${NC}\n" "$L_ITEM_10" "$UPDATE_INFO"
+    
+    # Пункт 10 с нормальной обработкой цвета
+    if [ -n "$UPDATE_INFO" ]; then
+        printf "  ${BOLD}${MAIN_COLOR}10 -${NC} ${BOLD}%s${YELLOW}%s${NC}\n" "$L_ITEM_10" "$UPDATE_INFO"
+    else
+        printf "  ${BOLD}${MAIN_COLOR}10 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_10"
+    fi
+
     printf "  ${BOLD}${MAIN_COLOR}11 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_11"
     printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_0"
     printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
