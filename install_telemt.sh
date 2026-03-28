@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.1"
+CURRENT_VERSION="1.4.3"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -105,11 +105,99 @@ show_links() {
     fi
 }
 
+cleanup_proxy() {
+    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt и защиты...${NC}"
+    
+    # 1. Сначала чистим Firewall, если он был
+    if ipset list leaseweb_v4 >/dev/null 2>&1; then
+        run_step "очистка правил iptables" "iptables -D INPUT -m set --match-set leaseweb_v4 src -j DROP 2>/dev/null; iptables -D OUTPUT -m set --match-set leaseweb_v4 dst -j DROP 2>/dev/null; iptables -D FORWARD -m set --match-set leaseweb_v4 src,dst -j DROP 2>/dev/null; ip6tables -D INPUT -m set --match-set leaseweb_v6 src -j DROP 2>/dev/null; ip6tables -D OUTPUT -m set --match-set leaseweb_v6 dst -j DROP 2>/dev/null; ip6tables -D FORWARD -m set --match-set leaseweb_v6 src,dst -j DROP 2>/dev/null; netfilter-persistent save 2>/dev/null"
+        run_step "удаление ipset баз" "systemctl disable ipset-persistent 2>/dev/null; rm -f /etc/systemd/system/ipset-persistent.service; ipset destroy leaseweb_v4 2>/dev/null; ipset destroy leaseweb_v6 2>/dev/null; rm -f /etc/ipset.conf"
+        run_step "очистка задач cron" "crontab -l 2>/dev/null | grep -v 'block_leaseweb.sh' | crontab -"
+        run_step "удаление скриптов защиты" "rm -f $BLOCK_SCRIPT"
+    fi
+
+    # 2. Чистим сам прокси
+    run_step "остановка службы" "systemctl stop telemt"
+    run_step "отключение автозагрузки" "systemctl disable telemt"
+    run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
+    run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"
+    run_step "удаление системных файлов" "rm -rf /opt/telemt"
+    run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
+    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
+    run_step "перезагрузка демонов" "systemctl daemon-reload"
+    
+    echo -e "${GREEN}${BOLD}    очистка завершена успешно!${NC}"
+}
+
+install_telemt() {
+    echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Telemt${NC}"
+    read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt: "$NC)" P_PORT; P_PORT=${P_PORT:-443}
+    read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS: "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
+    while true; do
+        read -p "$(echo -e $SKY_BLUE"  введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
+        [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]] && break || echo -e "       ${RED}ошибка! только буквы и цифры!${NC}"
+    done
+    read -p "$(echo -e $SKY_BLUE"  задайте лимит IP адресов: "$NC)" P_LIM; P_LIM=${P_LIM:-0}
+    echo -e ""
+    
+    run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
+    
+    ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
+    URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
+    run_step "загрузка бинарных файлов" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
+    
+    CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null || true; mkdir -p $CONF_DIR; 
+    cat <<EOF > $CONF_FILE
+[general]
+use_middle_proxy = false
+[general.modes]
+classic = false
+secure = false
+tls = true
+[server]
+port = $P_PORT
+[server.api]
+enabled = true
+listen = \"127.0.0.1:9091\"
+[censorship]
+tls_domain = \"$P_SNI\"
+[access.user_max_unique_ips]
+$P_USER = $P_LIM
+[access.users]
+$P_USER = \"\$(openssl rand -hex 16)\"
+EOF
+    chown -R telemt:telemt $CONF_DIR"
+    run_step "создание конфига" "$CMD_CONF"
+    
+    CMD_SRV="cat <<EOF > $SERVICE_FILE
+[Unit]
+Description=Telemt Proxy
+After=network-online.target
+[Service]
+Type=simple
+User=telemt
+Group=telemt
+WorkingDirectory=/opt/telemt
+ExecStart=$BIN_PATH $CONF_FILE
+Restart=on-failure
+LimitNOFILE=65536
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
+[Install]
+WantedBy=multi-user.target
+EOF"
+    run_step "настройка службы" "$CMD_SRV"
+    run_step "запуск Telemt" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
+    
+    echo -e "\n${BOLD}${GREEN}  установка завершена успешно!${NC}"
+    show_links "$P_USER"
+}
+
 # --- Firewall Logic ---
 
 install_firewall() {
     echo -e "\n${BOLD}${MAIN_COLOR}  активация 'Ядерного бана' для Leaseweb${NC}"
-    # ФИКС: Полностью неинтерактивная установка
     run_step "установка ipset и whois" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y ipset whois iptables-persistent -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold'"
     
     cat << 'EOF' > $BLOCK_SCRIPT
@@ -124,7 +212,6 @@ done
 ipset save > /etc/ipset.conf
 EOF
     chmod +x $BLOCK_SCRIPT
-    
     run_step "сбор базы IP адресов" "$BLOCK_SCRIPT"
     
     cat << 'EOF' > /etc/systemd/system/ipset-persistent.service
@@ -164,7 +251,6 @@ remove_firewall() {
     ip6tables -D OUTPUT -m set --match-set leaseweb_v6 dst -j DROP 2>/dev/null
     ip6tables -D FORWARD -m set --match-set leaseweb_v6 src,dst -j DROP 2>/dev/null
     netfilter-persistent save 2>/dev/null
-    
     systemctl disable ipset-persistent 2>/dev/null
     rm -f /etc/systemd/system/ipset-persistent.service $BLOCK_SCRIPT /etc/ipset.conf
     ipset destroy leaseweb_v4 2>/dev/null
@@ -173,7 +259,7 @@ remove_firewall() {
     echo -e "${GREEN}  защита полностью удалена${NC}"
 }
 
-# --- submenu logic ---
+# --- submenus ---
 
 submenu_firewall() {
     while true; do
@@ -181,13 +267,7 @@ submenu_firewall() {
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
         printf "${BOLD}${MAIN_COLOR}║         УПРАВЛЕНИЕ   ЗАЩИТОЙ           ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if ipset list leaseweb_v4 >/dev/null 2>&1; then 
-            FW_STAT="${GREEN}АКТИВНА${NC}"
-            COUNT=$(ipset list leaseweb_v4 2>/dev/null | grep -c '/')
-        else 
-            FW_STAT="${RED}ВЫКЛЮЧЕНА${NC}"
-            COUNT="0"
-        fi
+        if ipset list leaseweb_v4 >/dev/null 2>&1; then FW_STAT="${GREEN}АКТИВНА${NC}"; COUNT=$(ipset list leaseweb_v4 2>/dev/null | grep -c '/'); else FW_STAT="${RED}ВЫКЛЮЧЕНА${NC}"; COUNT="0"; fi
         printf "  текущий статус: %b\n" "$FW_STAT"
         printf "  заблокировано подсетей: ${SKY_BLUE}%s${NC}\n" "$COUNT"
         printf "${MAIN_COLOR}------------------------------------------${NC}\n"
@@ -216,8 +296,8 @@ submenu_service() {
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) install_telemt; wait_user ;;
-            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}  Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}  Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}  Ок${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}  Остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             0) break ;;
         esac
     done
@@ -288,7 +368,7 @@ submenu_users() {
                 read -p "$(echo -e $ORANGE"       номер для смены лимита: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                    T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"       новый лимит IP: "$NC)" N_LIM
+                    T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"       новый лимит: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
                     systemctl restart telemt && echo -e "${GREEN}       обновлён${NC}"; wait_user
