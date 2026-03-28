@@ -1,116 +1,121 @@
 #!/bin/bash
 
-# Цвета для вывода
-RED='\033[0;31m'
+# Цвета для красоты
 GREEN='\033[0;32m'
-NC='\033[0m' # No Color
-
+NC='\033[0m'
 echo -e "${GREEN}=== Telemt Auto-Installer ===${NC}"
 
-# 1. Проверка на root
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}Этот скрипт должен быть запущен от имени root${NC}" 
-   exit 1
+# Проверка на root
+if [ "$EUID" -ne 0 ]; then
+  echo "Запусти скрипт от имени root (sudo !)"
+  exit
 fi
 
-# 2. Сбор данных от пользователя
-read -p "Введите порт для прокси (по умолчанию 443): " PROXY_PORT </dev/tty
+# 1. Сбор данных
+read -p "Введите порт для прокси (по умолчанию 443): " PROXY_PORT
 PROXY_PORT=${PROXY_PORT:-443}
 
-read -p "Введите домен для маскировки (SNI, например google.com): " TLS_DOMAIN </dev/tty
+read -p "Введите TLS домен (SNI) (по умолчанию google.com): " TLS_DOMAIN
 TLS_DOMAIN=${TLS_DOMAIN:-google.com}
 
-read -p "Сколько пользователей создать? " USER_COUNT </dev/tty
-if ! [[ "$USER_COUNT" =~ ^[0-9]+$ ]] ; then
-   echo -e "${RED}Ошибка: введите число.${NC}"; exit 1
-fi
+read -p "Сколько пользователей создать? (по умолчанию 1): " USER_COUNT
+USER_COUNT=${USER_COUNT:-1}
 
-USER_NAMES=()
-for ((i=1; i<=USER_COUNT; i++)); do
-    read -p "Введите имя для пользователя #$i: " UNAME </dev/tty
-    USER_NAMES+=("$UNAME")
-done
-
-# 3. Установка зависимостей
-echo -e "${GREEN}Установка зависимостей (curl, jq, openssl)...${NC}"
+# 2. Установка зависимостей
+echo "Установка зависимостей..."
 apt-get update -qq
-apt-get install -y curl jq openssl libcap2-bin -qq
+apt-get install -y curl jq tar openssl net-tools -qq
 
-# 4. Скачивание бинарного файла (определяем архитектуру)
+# 3. Скачивание бинарника
+echo "Скачивание Telemt..."
 ARCH=$(uname -m)
-case $ARCH in
-    x86_64) BIN_URL="https://github.com/telemt/telemt/releases/latest/download/telemt-linux-amd64" ;;
-    aarch64) BIN_URL="https://github.com/telemt/telemt/releases/latest/download/telemt-linux-arm64" ;;
-    *) echo -e "${RED}Архитектура $ARCH не поддерживается.${NC}"; exit 1 ;;
-esac
+LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
+URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
 
-echo -e "${GREEN}Скачивание telemt...${NC}"
-curl -L "$BIN_URL" -o /usr/bin/telemt
-chmod +x /usr/bin/telemt
-# Позволяем бинарнику слушать низкие порты без root
-setcap cap_net_bind_service=+ep /usr/bin/telemt
+curl -L "$URL" | tar -xz
+mv telemt /bin
+chmod +x /bin/telemt
 
-# 5. Создание системного пользователя
-id -u telemt &>/dev/null || useradd -r -s /bin/false telemt
-
-# 6. Создание директорий и конфига
+# 4. Создание пользователя и папок
+useradd -d /opt/telemt -m -r -U telemt 2>/dev/null
 mkdir -p /etc/telemt
-cat <<EOF > /etc/telemt/telemt.toml
-[server]
-listen = "0.0.0.0:$PROXY_PORT"
-tls_domain = "$TLS_DOMAIN"
 
-[api]
+# 5. Генерация конфигурации
+echo "Генерация конфига..."
+CONFIG_PATH="/etc/telemt/telemt.toml"
+
+cat <<EOF > $CONFIG_PATH
+[general]
+use_middle_proxy = false
+
+[general.modes]
+classic = false
+secure = false
+tls = true
+
+[server]
+port = $PROXY_PORT
+
+[server.api]
+enabled = true
 listen = "127.0.0.1:9091"
+
+[censorship]
+tls_domain = "$TLS_DOMAIN"
 
 [access.users]
 EOF
 
-# Генерация секретов для пользователей
-for NAME in "${USER_NAMES[@]}"; do
+# Добавляем пользователей и генерируем секреты
+for i in $(seq 1 $USER_COUNT); do
     SECRET=$(openssl rand -hex 16)
-    echo "    $NAME = \"$SECRET\"" >> /etc/telemt/telemt.toml
+    echo "user$i = \"$SECRET\"" >> $CONFIG_PATH
 done
 
-# 7. Создание Systemd сервиса
+chown -R telemt:telemt /etc/telemt
+
+# 6. Создание Systemd сервиса
+echo "Настройка Systemd..."
 cat <<EOF > /etc/systemd/system/telemt.service
 [Unit]
-Description=Telemt Proxy Service
-After=network.target
+Description=Telemt Proxy
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=telemt
 Group=telemt
-ExecStart=/usr/bin/telemt -c /etc/telemt/telemt.toml
+WorkingDirectory=/opt/telemt
+ExecStart=/bin/telemt /etc/telemt/telemt.toml
 Restart=on-failure
+LimitNOFILE=65536
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=true
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# 8. Запуск
-echo -e "${GREEN}Запуск сервиса...${NC}"
+# 7. Запуск
 systemctl daemon-reload
 systemctl enable telemt
 systemctl restart telemt
 
-# 9. Формирование ссылок
-echo -e "\n${GREEN}=== Установка завершена! ===${NC}"
-IP=$(curl -s https://ifconfig.me)
-HEX_DOMAIN=$(echo -n "$TLS_DOMAIN" | xxd -p | tr -d '\n')
+echo -e "${GREEN}Сервис запущен!${NC}"
+sleep 2 # Ждем секунду, чтобы API поднялось
 
-echo -e "Ваши ссылки для подключения:\n"
+# 8. Вывод ссылок
+echo -e "\n${GREEN}=== ВАШИ ССЫЛКИ ДЛЯ ПОДКЛЮЧЕНИЯ ===${NC}"
+PUBLIC_IP=$(curl -s https://api.ipify.org)
+LINKS=$(curl -s http://127.0.0.1:9091/v1/users)
 
-for NAME in "${USER_NAMES[@]}"; do
-    # Получаем секрет из конфига для этого юзера
-    USER_SECRET=$(grep -W "$NAME =" /etc/telemt/telemt.toml | cut -d'"' -f2)
-    # Формат ссылки для FakeTLS: ee + secret + hex_domain
-    FULL_SECRET="ee${USER_SECRET}${HEX_DOMAIN}"
-    echo -e "Пользователь: ${RED}$NAME${NC}"
-    echo -e "https://t.me/proxy?server=$IP&port=$PROXY_PORT&secret=$FULL_SECRET"
-    echo -e "tg://proxy?server=$IP&port=$PROXY_PORT&secret=$FULL_SECRET\n"
-done
+if [ -z "$LINKS" ]; then
+    echo "Ошибка: API не отвечает. Проверьте статус: systemctl status telemt"
+else
+    # Парсим JSON и заменяем 0.0.0.0 на реальный IP
+    echo "$LINKS" | jq -r '.[]' | sed "s/0.0.0.0/$PUBLIC_IP/g"
+fi
 
-echo -e "${GREEN}Проверить статус: systemctl status telemt${NC}"
-echo -e "${GREEN}Конфиг: /etc/telemt/telemt.toml${NC}"
+echo -e "\n${GREEN}Конфиг лежит тут: /etc/telemt/telemt.toml${NC}"
