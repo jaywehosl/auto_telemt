@@ -3,7 +3,7 @@
 # ==========================================================
 # ПАРАМЕТРЫ И ВЕРСИЯ
 # ==========================================================
-CURRENT_VERSION="1.1.1"
+CURRENT_VERSION="1.1.2"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === БЛОК ТЕКСТОВЫХ СТРОК (РУСИФИКАЦИЯ) ===
@@ -13,7 +13,7 @@ L_STATUS_RUN="Работает (Active)"
 L_STATUS_STOP="Остановлен (Inactive)"
 L_STATUS_NONE="Не установлен"
 
-# Главное меню (Переставлено по приоритету)
+# Главное меню
 L_MAIN_1="Управление сервисом (Установка/Старт/Стоп)"
 L_MAIN_2="Управление пользователями (Ссылки/Лимиты)"
 L_MAIN_3="Настройки прокси (Порт/SNI/Лог)"
@@ -26,7 +26,7 @@ L_USR_2="Добавить нового пользователя"
 L_USR_3="Удалить пользователя"
 L_USR_4="Настроить лимит IP адресов"
 
-L_PROMPT_BACK="0 - Назад"
+L_PROMPT_BACK="Назад"
 L_MSG_WAIT_ENTER="Нажмите [Enter] для продолжения..."
 L_ERR_NOT_INSTALLED="Ошибка: Прокси еще не установлен в системе!"
 L_MSG_UPDATE_OK="Менеджер успешно обновлен! Перезапуск..."
@@ -53,7 +53,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Регистрация команды 'telemt' (при каждом запуске для надежности)
+# Регистрация команды 'telemt'
 if [ ! -f "$CLI_NAME" ]; then
     curl -sSL -f "$REPO_URL" -o "$CLI_NAME" 2>/dev/null || cp "$0" "$CLI_NAME"
     chmod +x "$CLI_NAME"
@@ -105,7 +105,7 @@ show_links() {
     fi
 }
 
-# --- ПОДМЕНЮ 1: УПРАВЛЕНИЕ СЕРВИСОМ ---
+# --- ПОДМЕНЮ 1: СЕРВИС ---
 submenu_service() {
     while true; do
         clear
@@ -118,8 +118,7 @@ submenu_service() {
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         read -p "Выберите действие: " subchoice
         case $subchoice in
-            1) # Установка
-                read -p "Порт (443): " P_PORT; P_PORT=${P_PORT:-443}
+            1) read -p "Порт (443): " P_PORT; P_PORT=${P_PORT:-443}
                 read -p "SNI домен (google.com): " P_SNI; P_SNI=${P_SNI:-google.com}
                 read -p "Имя первого юзера: " P_USER; P_USER=${P_USER:-admin}
                 read -p "Лимит IP (0 - безл): " P_LIM; P_LIM=${P_LIM:-0}
@@ -174,7 +173,7 @@ EOF
     done
 }
 
-# --- ПОДМЕНЮ 2: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ---
+# --- ПОДМЕНЮ 2: ПОЛЬЗОВАТЕЛИ ---
 submenu_users() {
     while true; do
         clear
@@ -239,15 +238,26 @@ submenu_settings() {
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
         printf "${BOLD}${MAIN_COLOR}║            НАСТРОЙКИ ПРОКСИ            ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
+        # Защита от запуска без конфига
+        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
+
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}Системный лог (статус)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}Изменить порт${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}Изменить SNI домен${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         read -p "Выберите действие: " subchoice
         case $subchoice in
-            1) [ -f "$SERVICE_FILE" ] && systemctl status telemt || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            2) read -p "Новый порт: " N_PORT; sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt; wait_user ;;
-            3) read -p "Новый SNI: " N_SNI; sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt; wait_user ;;
+            1) systemctl status telemt; wait_user ;;
+            2) read -p "Новый порт: " N_PORT
+                if [[ $N_PORT =~ ^[0-9]+$ ]]; then
+                    sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt && echo "Ок"
+                else echo -e "${RED}Ошибка: Неверный порт${NC}"; fi
+                wait_user ;;
+            3) read -p "Новый SNI: " N_SNI
+                if [ -n "$N_SNI" ]; then
+                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo "Ок"
+                else echo -e "${RED}Ошибка: Пустой SNI${NC}"; fi
+                wait_user ;;
             0) break ;;
         esac
     done
@@ -294,7 +304,6 @@ while true; do
     printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_MAIN_1${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_MAIN_2${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"
-    # Пункт 4 с выводом обновления через %b
     printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}%s%b${NC}\n" "$L_MAIN_4" "$UPDATE_INFO"
     printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"
     printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
