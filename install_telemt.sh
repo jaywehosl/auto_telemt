@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.1.8"
+CURRENT_VERSION="1.1.9"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -325,7 +325,7 @@ while true; do
     check_updates
     clear
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║          %s (v%s)         ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
+    printf "${BOLD}${MAIN_COLOR}║           %s (v%s)         ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
