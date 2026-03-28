@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.2.1"
+CURRENT_VERSION="1.2.2"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -100,11 +100,11 @@ cleanup_proxy() {
     echo -e "\n${BOLD}${SKY_BLUE}удаляем компоненты Telemt...${NC}"
     run_step "остановка службы" "systemctl stop telemt"
     run_step "отключение автозагрузки" "systemctl disable telemt"
-    run_step "удаление бинарника" "rm -f $BIN_PATH"
-    run_step "удаление конфигурации" "rm -rf $CONF_DIR"
-    run_step "удаление файлов пользователя" "rm -rf /opt/telemt"
+    run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
+    run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"
+    run_step "удаление системных файлов" "rm -rf /opt/telemt"
     run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
-    run_step "удаление пользователя" "userdel telemt 2>/dev/null || true"
+    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
     run_step "перезагрузка демонов" "systemctl daemon-reload"
     echo -e "${GREEN}${BOLD}Telemt успешно удалён${NC}"
 }
@@ -182,7 +182,6 @@ submenu_service() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}остановить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        echo -e "${MAIN_COLOR}------------------------------------------${NC}"
         read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
         case $subchoice in
             1) install_telemt; wait_user ;;
@@ -202,10 +201,9 @@ submenu_users() {
         if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}список пользователей и ссылки${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}добавить пользователя${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить пользователя${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удаление пользователей${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}настроить лимит IP${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        echo -e "${MAIN_COLOR}------------------------------------------${NC}"
         read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
         case $subchoice in
             1) while true; do
@@ -231,7 +229,9 @@ submenu_users() {
                 fi ;;
             3) while true; do
                 mapfile -t USERS < <(get_user_list)
-                clear; echo -e "${BOLD}${MAIN_COLOR}=== УДАЛЕНИЕ ПОЛЬЗОВАТЕЛЯ ===${NC}"
+                clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}║         УДАЛЕНИЕ   ПОЛЬЗОВАТЕЛЕЙ       ║${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
                 read -p "$(echo -e $ORANGE"введите номер пользователя для удаления: "$NC)" U_IDX
@@ -279,7 +279,6 @@ submenu_settings() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        echo -e "${MAIN_COLOR}------------------------------------------${NC}"
         read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
         case $subchoice in
             1) systemctl status telemt; wait_user ;;
@@ -309,7 +308,6 @@ submenu_manager() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить сервис Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        echo -e "${MAIN_COLOR}------------------------------------------${NC}"
         read -p "$(echo -e $ORANGE"выберите действие: "$NC)" subchoice
         case $subchoice in
             1) echo -e "${SKY_BLUE}обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
