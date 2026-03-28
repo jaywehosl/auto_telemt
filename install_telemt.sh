@@ -3,7 +3,7 @@
 # ==========================================================
 # ПАРАМЕТРЫ И ВЕРСИЯ
 # ==========================================================
-CURRENT_VERSION="1.1.0"
+CURRENT_VERSION="1.1.1"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === БЛОК ТЕКСТОВЫХ СТРОК (РУСИФИКАЦИЯ) ===
@@ -13,12 +13,12 @@ L_STATUS_RUN="Работает (Active)"
 L_STATUS_STOP="Остановлен (Inactive)"
 L_STATUS_NONE="Не установлен"
 
-# Категории главного меню
-L_CAT_1="Управление пользователями"
-L_CAT_2="Управление сервисом (Запуск/Стоп)"
-L_CAT_3="Настройки прокси (Порт/SNI/Лог)"
-L_CAT_4="Обслуживание менеджера"
-L_CAT_0="Выход"
+# Главное меню (Переставлено по приоритету)
+L_MAIN_1="Управление сервисом (Установка/Старт/Стоп)"
+L_MAIN_2="Управление пользователями (Ссылки/Лимиты)"
+L_MAIN_3="Настройки прокси (Порт/SNI/Лог)"
+L_MAIN_4="Обслуживание менеджера"
+L_MAIN_0="Выход"
 
 # Подменю Пользователи
 L_USR_1="Список пользователей и ссылки"
@@ -53,7 +53,7 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Регистрация команды 'telemt'
+# Регистрация команды 'telemt' (при каждом запуске для надежности)
 if [ ! -f "$CLI_NAME" ]; then
     curl -sSL -f "$REPO_URL" -o "$CLI_NAME" 2>/dev/null || cp "$0" "$CLI_NAME"
     chmod +x "$CLI_NAME"
@@ -81,7 +81,7 @@ run_step() {
 check_updates() {
     REMOTE_VER=$(curl -sSL -f "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
-        UPDATE_INFO=" (Доступно v$REMOTE_VER)"
+        UPDATE_INFO=" \033[1;33m(Доступно v$REMOTE_VER)\033[0m"
     else
         UPDATE_INFO=""
     fi
@@ -105,90 +105,20 @@ show_links() {
     fi
 }
 
-# --- ПОДМЕНЮ 1: ПОЛЬЗОВАТЕЛИ ---
-submenu_users() {
-    while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║        УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ       ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
-        
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_USR_1${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_USR_2${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_USR_3${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}$L_USR_4${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "Выберите действие: " subchoice
-        
-        case $subchoice in
-            1) # Список и ссылки
-                while true; do
-                    mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
-                    clear; echo -e "${BOLD}${MAIN_COLOR}=== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ===${NC}"
-                    for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
-                    echo -e "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}"
-                    read -p "Номер пользователя для ссылок: " U_IDX
-                    [[ "$U_IDX" == "0" ]] && break
-                    if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                        show_links "${USERS[$((U_IDX-1))]}"; wait_user
-                    fi
-                done ;;
-            2) # Добавить
-                read -p "Имя нового пользователя: " UNAME
-                if [ -n "$UNAME" ]; then
-                    read -p "Лимит IP (0 - безлимит): " ULIM; ULIM=${ULIM:-0}
-                    U_SEC=$(openssl rand -hex 16)
-                    sed -i "/\[access.user_max_unique_ips\]/a $UNAME = $ULIM" $CONF_FILE
-                    echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
-                    systemctl restart telemt && echo -e "${GREEN}Пользователь '$UNAME' добавлен.${NC}"
-                    wait_user
-                fi ;;
-            3) # Удалить
-                mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
-                for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
-                read -p "Номер для удаления: " U_IDX
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                    DEL_NAME="${USERS[$((U_IDX-1))]}"
-                    sed -i "/^$DEL_NAME =/d" $CONF_FILE
-                    systemctl restart telemt && echo -e "${RED}Удален: $DEL_NAME${NC}"
-                    wait_user
-                fi ;;
-            4) # Лимит IP
-                mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
-                for i in "${!USERS[@]}"; do
-                    # Ищем строку лимита (где нет кавычек)
-                    CUR_LIM=$(grep "^${USERS[$i]} =" $CONF_FILE | grep -v "\"" | awk '{print $3}')
-                    printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (Лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
-                done
-                read -p "Номер для смены лимита: " U_IDX
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                    T_USER="${USERS[$((U_IDX-1))]}"
-                    read -p "Новый лимит IP (0 - безлимит): " N_LIM
-                    sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
-                    sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
-                    systemctl restart telemt && echo -e "${GREEN}Лимит обновлен.${NC}"
-                    wait_user
-                fi ;;
-            0) break ;;
-        esac
-    done
-}
-
-# --- ПОДМЕНЮ 2: СЕРВИС ---
+# --- ПОДМЕНЮ 1: УПРАВЛЕНИЕ СЕРВИСОМ ---
 submenu_service() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
         printf "${BOLD}${MAIN_COLOR}║           УПРАВЛЕНИЕ СЕРВИСОМ          ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}УСТАНОВИТЬ Telemt${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}УСТАНОВИТЬ Telemt (с нуля)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}Перезапустить прокси${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}Остановить прокси${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         read -p "Выберите действие: " subchoice
         case $subchoice in
-            1) # Полная установка
+            1) # Установка
                 read -p "Порт (443): " P_PORT; P_PORT=${P_PORT:-443}
                 read -p "SNI домен (google.com): " P_SNI; P_SNI=${P_SNI:-google.com}
                 read -p "Имя первого юзера: " P_USER; P_USER=${P_USER:-admin}
@@ -212,10 +142,8 @@ enabled = true
 listen = "127.0.0.1:9091"
 [censorship]
 tls_domain = "$P_SNI"
-
 [access.user_max_unique_ips]
 $P_USER = $P_LIM
-
 [access.users]
 $P_USER = "$(openssl rand -hex 16)"
 EOF
@@ -239,8 +167,66 @@ WantedBy=multi-user.target
 EOF
                 run_step "Запуск" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
                 wait_user ;;
-            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo "Ок" || echo "$L_ERR_NOT_INSTALLED"; wait_user ;;
-            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo "Ок" || echo "$L_ERR_NOT_INSTALLED"; wait_user ;;
+            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo "Ок" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo "Ок" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            0) break ;;
+        esac
+    done
+}
+
+# --- ПОДМЕНЮ 2: УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ ---
+submenu_users() {
+    while true; do
+        clear
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║        УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ       ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
+        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_USR_1${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_USR_2${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_USR_3${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}$L_USR_4${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        read -p "Выберите действие: " subchoice
+        case $subchoice in
+            1) while true; do
+                mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
+                clear; echo -e "${BOLD}${MAIN_COLOR}=== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ===${NC}"
+                for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                echo -e "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}"
+                read -p "Номер пользователя для ссылок: " U_IDX
+                [[ "$U_IDX" == "0" ]] && break
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                    show_links "${USERS[$((U_IDX-1))]}"; wait_user
+                fi
+            done ;;
+            2) read -p "Имя нового пользователя: " UNAME
+                if [ -n "$UNAME" ]; then
+                    read -p "Лимит IP (0 - безлимит): " ULIM; ULIM=${ULIM:-0}
+                    U_SEC=$(openssl rand -hex 16)
+                    sed -i "/\[access.user_max_unique_ips\]/a $UNAME = $ULIM" $CONF_FILE
+                    echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
+                    systemctl restart telemt && echo -e "${GREEN}Ок${NC}"; wait_user
+                fi ;;
+            3) mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
+                for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                read -p "Номер для удаления: " U_IDX
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                    DEL_NAME="${USERS[$((U_IDX-1))]}"; sed -i "/^$DEL_NAME =/d" $CONF_FILE
+                    systemctl restart telemt && echo -e "${RED}Удален${NC}"; wait_user
+                fi ;;
+            4) mapfile -t USERS < <(grep "=" "$CONF_FILE" | grep -v "port" | grep -v "listen" | cut -d' ' -f1 | sort -u)
+                for i in "${!USERS[@]}"; do
+                    CUR_LIM=$(grep "^${USERS[$i]} =" $CONF_FILE | grep -v "\"" | awk '{print $3}')
+                    printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (Лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
+                done
+                read -p "Номер для смены лимита: " U_IDX
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                    T_USER="${USERS[$((U_IDX-1))]}"; read -p "Новый лимит: " N_LIM
+                    sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
+                    sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
+                    systemctl restart telemt && echo -e "${GREEN}Ок${NC}"; wait_user
+                fi ;;
             0) break ;;
         esac
     done
@@ -259,7 +245,7 @@ submenu_settings() {
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         read -p "Выберите действие: " subchoice
         case $subchoice in
-            1) [ -f "$SERVICE_FILE" ] && systemctl status telemt || echo "$L_ERR_NOT_INSTALLED"; wait_user ;;
+            1) [ -f "$SERVICE_FILE" ] && systemctl status telemt || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             2) read -p "Новый порт: " N_PORT; sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt; wait_user ;;
             3) read -p "Новый SNI: " N_SNI; sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt; wait_user ;;
             0) break ;;
@@ -267,9 +253,35 @@ submenu_settings() {
     done
 }
 
-# --- ГЛАВНОЕ МЕНЮ ---
-check_updates
+# --- ПОДМЕНЮ 4: ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА ---
+submenu_manager() {
+    while true; do
+        clear
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║         ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА         ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}Обновить менеджер${UPDATE_INFO}${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}УДАЛИТЬ ВСЁ (Uninstall)${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        read -p "Выберите действие: " subchoice
+        case $subchoice in
+            1) echo "Обновление..."; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
+               sync; chmod +x "$CLI_NAME"; echo -e "${GREEN}Готово!${NC}"; sleep 1; exec "$CLI_NAME";
+               else echo "Ошибка"; wait_user; fi ;;
+            2) read -p "Точно удалить ВСЁ? (y/n): " confirm
+               if [[ $confirm == "y" ]]; then
+                    systemctl stop telemt 2>/dev/null; systemctl disable telemt 2>/dev/null
+                    rm -f $SERVICE_FILE $BIN_PATH $CLI_NAME; rm -rf $CONF_DIR /opt/telemt; userdel telemt 2>/dev/null
+                    echo "Удалено"; exit 0
+               fi ;;
+            0) break ;;
+        esac
+    done
+}
+
+# --- ГЛАВНЫЙ ЦИКЛ ---
 while true; do
+    check_updates
     clear
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
     printf "${BOLD}${MAIN_COLOR}║        %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
@@ -279,26 +291,19 @@ while true; do
     else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
     printf "  %s %b\n" "$L_STATUS_LABEL" "$STATUS"
     printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_CAT_1${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_CAT_2${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_CAT_3${NC}\n"
-    if [ -n "$UPDATE_INFO" ]; then
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}%s ${YELLOW}%s${NC}\n" "$L_CAT_4" "$UPDATE_INFO"
-    else printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}$L_CAT_4${NC}\n"; fi
-    printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_CAT_0${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_MAIN_1${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_MAIN_2${NC}\n"
+    printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"
+    # Пункт 4 с выводом обновления через %b
+    printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}%s%b${NC}\n" "$L_MAIN_4" "$UPDATE_INFO"
+    printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"
     printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
     read -p "Выберите раздел: " mainchoice
     case $mainchoice in
-        1) submenu_users ;;
-        2) submenu_service ;;
+        1) submenu_service ;;
+        2) submenu_users ;;
         3) submenu_settings ;;
-        4) # Менеджер
-            clear; echo -e "${BOLD}${MAIN_COLOR}=== ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА ===${NC}"
-            echo -e "1 - Обновить скрипт\n2 - УДАЛИТЬ ВСЁ\n0 - Назад"
-            read -p "Действие: " mchoice
-            [[ "$mchoice" == "1" ]] && curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME" && chmod +x "$CLI_NAME" && exec "$CLI_NAME"
-            [[ "$mchoice" == "2" ]] && systemctl stop telemt; rm -rf $SERVICE_FILE $BIN_PATH $CLI_NAME $CONF_DIR /opt/telemt; exit 0
-            ;;
+        4) submenu_manager ;;
         0) exit 0 ;;
     esac
 done
