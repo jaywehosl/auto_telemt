@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.2.7"
+CURRENT_VERSION="1.2.8"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -80,7 +80,7 @@ get_user_list() {
 show_links() {
     local target_user="$1"
     [ -z "$target_user" ] && return
-    echo -e "\n${BOLD}${MAIN_COLOR}ключи подключения: $target_user ===${NC}"
+    echo -e "\n${BOLD}${MAIN_COLOR}  ключи подключения: $target_user${NC}"
     sleep 1.5
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
@@ -110,16 +110,16 @@ cleanup_proxy() {
 }
 
 install_telemt() {
-    echo -e "\n${BOLD}${MAIN_COLOR}настройка и установка Telemt${NC}"
-    read -p "$(echo -e $ORANGE"укажите порт для Telemt (по умолчанию сервис работает на 443 порту): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
-    read -p "$(echo -e $ORANGE"укажите SNI для TLS (возможно использовать любой валидный SNI): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
-    read -p "$(echo -e $ORANGE"введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
-    read -p "$(echo -e $ORANGE"задайте лимит IP адресов (если лимит не нужен, введите 0): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
+    echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Telemt${NC}"
+    read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt ${MAIN_COLOR}(по умолчанию сервис работает на 443 порту): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
+    read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(возможно использовать любой валидный SNI): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
+    read -p "$(echo -e $SKY_BLUE"         введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
+    read -p "$(echo -e $SKY_BLUE"  задайте лимит IP адресов ${MAIN_COLOR}(если лимит не нужен, введите 0): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
     echo -e ""
-    run_step "Установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
+    run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
     ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
     URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
-    run_step "загрузка бинарника" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
+    run_step "загрузка бинарных файлов" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
     
     CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null || true; mkdir -p $CONF_DIR; 
     cat <<EOF > $CONF_FILE
@@ -166,7 +166,7 @@ WantedBy=multi-user.target
 EOF"
     run_step "настройка службы" "$CMD_SRV"
     run_step "запуск Telemt" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
-    echo -e "\n${BOLD}${GREEN}установка завершена успешно!${NC}"
+    echo -e "\n${BOLD}${GREEN}  установка завершена успешно!${NC}"
     show_links "$P_USER"
 }
 
@@ -185,8 +185,8 @@ submenu_service() {
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) install_telemt; wait_user ;;
-            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}  Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}  Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             0) break ;;
         esac
     done
@@ -213,13 +213,13 @@ submenu_users() {
                        echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
-                read -p "$(echo -e $ORANGE"введите номер пользователя: "$NC)" U_IDX
+                read -p "$(echo -e $ORANGE"       введите номер пользователя: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     show_links "${USERS[$((U_IDX-1))]}"; wait_user
                 fi
             done ;;
-            2) read -p "$(echo -e $ORANGE"введите имя пользователя: "$NC)" UNAME
+            2) read -p "$(echo -e $ORANGE"       введите имя пользователя: "$NC)" UNAME
                 if [ -n "$UNAME" ]; then
                     read -p "$(echo -e $ORANGE"задайте лимит IP адресов (если лимит не нужен, введите 0): "$NC)" ULIM; ULIM=${ULIM:-0}
                     U_SEC=$(openssl rand -hex 16)
@@ -234,7 +234,7 @@ submenu_users() {
                        echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
-                read -p "$(echo -e $ORANGE"введите номер пользователя для удаления: "$NC)" U_IDX
+                read -p "$(echo -e $ORANGE"       введите номер пользователя для удаления: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     DEL_NAME="${USERS[$((U_IDX-1))]}"
@@ -254,7 +254,7 @@ submenu_users() {
                     printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (текущий лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
                 done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
-                read -p "$(echo -e $ORANGE"введите номер пользователя для смены лимита: "$NC)" U_IDX
+                read -p "$(echo -e $ORANGE"       введите номер пользователя для смены лимита: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"новый лимит IP: "$NC)" N_LIM
@@ -282,12 +282,12 @@ submenu_settings() {
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) systemctl status telemt; wait_user ;;
-            2) read -p "$(echo -e $ORANGE"введите новый порт: "$NC)" N_PORT
+            2) read -p "$(echo -e $ORANGE"       введите новый порт: "$NC)" N_PORT
                 if [[ $N_PORT =~ ^[0-9]+$ ]]; then
                     sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}порт изменён, сервис перезапущен${NC}"
                 else echo -e "${RED}ошибка!${NC}"; fi
                 wait_user ;;
-            3) read -p "$(echo -e $ORANGE"введите новый SNI: "$NC)" N_SNI
+            3) read -p "$(echo -e $ORANGE"       введите новый SNI: "$NC)" N_SNI
                 if [ -n "$N_SNI" ]; then
                     sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменён, сервис перезапущен${NC}"
                 else echo -e "${RED}ошибка!${NC}"; fi
@@ -313,9 +313,9 @@ submenu_manager() {
             1) echo -e "${SKY_BLUE}обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                sync; chmod +x "$CLI_NAME"; exec "$CLI_NAME";
                else echo -e "${RED}ошибка${NC}"; wait_user; fi ;;
-            2) read -p "$(echo -e ${RED}"внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
+            2) read -p "$(echo -e ${RED}"       внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                [[ $confirm == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "$(echo -e ${RED}"внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
+            3) read -p "$(echo -e ${RED}"       внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ $confirm == "y" ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
             0) break ;;
         esac
