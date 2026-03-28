@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.1.9"
+CURRENT_VERSION="1.2.0"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -210,7 +210,9 @@ submenu_users() {
         case $subchoice in
             1) while true; do
                 mapfile -t USERS < <(get_user_list)
-                clear; echo -e "${BOLD}${MAIN_COLOR}=== СПИСОК ПОЛЬЗОВАТЕЛЕЙ ===${NC}"
+                clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}║          СПИСОК  ПОЛЬЗОВАТЕЛЕЙ         ║${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
                 read -p "$(echo -e $ORANGE"введите номер пользователя: "$NC)" U_IDX
