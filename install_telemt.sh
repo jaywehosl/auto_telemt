@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.3"
+CURRENT_VERSION="1.3.5"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -39,7 +39,8 @@ BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
 CONF_FILE="$CONF_DIR/telemt.toml"
 SERVICE_FILE="/etc/systemd/system/telemt.service"
-CLI_NAME="/usr/local/bin/telemt"
+# ИЗМЕНЕНО: Команда вызова менеджера теперь tmt
+CLI_NAME="/usr/local/bin/tmt"
 
 if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
 
@@ -74,7 +75,6 @@ check_updates() {
 # get user list function
 get_user_list() {
     if [ -f "$CONF_FILE" ]; then
-        # we take everything after [access.users] and look for с '=', grab first word
         sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
     fi
 }
@@ -121,7 +121,7 @@ install_telemt() {
         if [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]]; then
             break
         else
-            echo -e "      ${RED}ошибка: имя должно содержать только латинские буквы и цифры!${NC}"
+            echo -e "       ${RED}ошибка! имя пользователя должно содержать только латинские буквы и цифры!${NC}"
         fi
     done
 
@@ -333,13 +333,19 @@ submenu_manager() {
             2) read -p "$(echo -e ${RED}"       внимание! это действие удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy && wait_user; fi ;;
             3) read -p "$(echo -e ${RED}"       внимание! это действие полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}${NC}"; exit 0; fi ;;
+               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
             0) break ;;
         esac
     done
 }
 
 # --- main cycle ---
+# Автоматическая регистрация команды 'tmt' в системе
+if [ ! -f "$CLI_NAME" ]; then
+    curl -sSL -f "$REPO_URL" -o "$CLI_NAME" 2>/dev/null || cp "$0" "$CLI_NAME"
+    chmod +x "$CLI_NAME"
+fi
+
 while true; do
     check_updates
     clear
