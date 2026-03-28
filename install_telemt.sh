@@ -97,24 +97,43 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-# 7. Запуск
+# 7. Запуск (Рестарт тут!)
 systemctl daemon-reload
 systemctl enable telemt
 systemctl restart telemt
 
-echo -e "${GREEN}Сервис запущен! Ожидание инициализации сети...${NC}"
-sleep 4 # Даем время бинарнику определить свои IP
+echo -e "${GREEN}Сервис перезапущен. Финализация ссылок...${NC}"
 
-# 8. Вывод ссылок (Исправленный парсинг)
+# Небольшая пауза, чтобы API проснулось
+sleep 3
+
+# 8. Определение внешних IP (v4 и v6) для замены заглушек
+IP4=$(curl -4 -s --max-time 5 https://api.ipify.org || echo "")
+IP6=$(curl -6 -s --max-time 5 https://api64.ipify.org || echo "")
+
+# 9. Вывод ссылок
 echo -e "\n${GREEN}=== ВАШИ ССЫЛКИ ДЛЯ ПОДКЛЮЧЕНИЯ ===${NC}"
 LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r '.data[].links.tls[]')
 
 if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-    echo "Ошибка: API не выдало ссылки. Проверьте: systemctl status telemt"
+    echo "Ошибка: API не отвечает. Попробуй позже команду:"
+    echo "curl -s http://127.0.0.1:9091/v1/users | jq -r '.data[].links.tls[]'"
 else
-    # Если IP все еще 0.0.0.0 (бывает на некоторых VPS), подставляем вручную
-    PUBLIC_IP=$(curl -s https://api.ipify.org)
-    echo "$LINKS" | sed "s/0.0.0.0/$PUBLIC_IP/g"
+    # Обработка ссылок: меняем 0.0.0.0 на v4 и :: на v6
+    for link in $LINKS; do
+        if [[ $link == *"server=0.0.0.0"* && -n "$IP4" ]]; then
+            echo "${link//0.0.0.0/$IP4}"
+        elif [[ $link == *"server=::"* ]]; then
+            if [ -n "$IP6" ]; then
+                echo "${link//::/$IP6}"
+            else
+                # Если IPv6 на сервере нет, просто не выводим битую ссылку
+                continue
+            fi
+        else
+            echo "$link"
+        fi
+    done
 fi
 
 echo -e "\n${GREEN}Конфиг: /etc/telemt/telemt.toml${NC}"
