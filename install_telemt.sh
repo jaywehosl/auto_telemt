@@ -79,7 +79,8 @@ run_step() {
 }
 
 check_updates() {
-    REMOTE_VER=$(curl -sSL -f "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
+    # Пытаемся получить версию с GitHub (таймаут 3 сек чтобы не фризить меню)
+    REMOTE_VER=$(curl -sSL -f --connect-timeout 2 --max-time 3 "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
         UPDATE_INFO=" \033[1;33m(Доступно v$REMOTE_VER)\033[0m"
     else
@@ -265,6 +266,8 @@ submenu_settings() {
 
 # --- ПОДМЕНЮ 4: ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА ---
 submenu_manager() {
+    # Принудительно проверяем обновления при входе в этот раздел
+    check_updates
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
