@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.2.8"
+CURRENT_VERSION="1.2.9"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -80,7 +80,7 @@ get_user_list() {
 show_links() {
     local target_user="$1"
     [ -z "$target_user" ] && return
-    echo -e "\n${BOLD}${MAIN_COLOR}  ключи подключения: $target_user${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}       ключи подключения для пользователя $target_user:${NC}"
     sleep 1.5
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
@@ -338,7 +338,7 @@ while true; do
     printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}%s%b${NC}\n" "$L_MAIN_4" "$UPDATE_INFO"
     printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"
-    read -p "$(echo -e $ORANGE"выберите раздел: "$NC)" mainchoice
+    read -p "$(echo -e $ORANGE"       выберите раздел: "$NC)" mainchoice
     case $mainchoice in
         1) submenu_service ;;
         2) submenu_users ;;
