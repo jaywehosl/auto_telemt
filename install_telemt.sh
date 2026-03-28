@@ -235,11 +235,11 @@ submenu_users() {
                 if [[ "$UNAME" =~ ^[a-zA-Z0-9]+$ ]]; then
                     break
                 else
-                    echo -e "      ${RED}ошибка: имя должно содержать только латинские буквы и цифры!${NC}"
+                    echo -e "       ${RED}ошибка! имя пользователя должно содержать только латинские буквы и цифры!${NC}"
                 fi
                done
                 if [ -n "$UNAME" ]; then
-                    read -p "$(echo -e $ORANGE"задайте лимит IP адресов (если лимит не нужен, введите 0): "$NC)" ULIM; ULIM=${ULIM:-0}
+                    read -p "$(echo -e $ORANGE"       задайте лимит IP адресов (если лимит не нужен, введите 0): "$NC)" ULIM; ULIM=${ULIM:-0}
                     U_SEC=$(openssl rand -hex 16)
                     sed -i "/\[access.user_max_unique_ips\]/a $UNAME = $ULIM" $CONF_FILE
                     echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
@@ -333,7 +333,7 @@ submenu_manager() {
             2) read -p "$(echo -e ${RED}"       внимание! это действие удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy && wait_user; fi ;;
             3) read -p "$(echo -e ${RED}"       внимание! это действие полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
+               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}${NC}"; exit 0; fi ;;
             0) break ;;
         esac
     done
