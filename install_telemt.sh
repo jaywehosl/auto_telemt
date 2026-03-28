@@ -176,7 +176,7 @@ submenu_service() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║         УПРАВЛЕНИЕ СТАЛИН-3000         ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║          УПРАВЛЕНИЕ  СЕРВИСОМ          ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
@@ -268,7 +268,7 @@ submenu_settings() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║            НАСТРОЙКИ Telemt            ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║                НАСТРОЙКИ               ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"
@@ -325,7 +325,7 @@ while true; do
     check_updates
     clear
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║        %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
+    printf "${BOLD}${MAIN_COLOR}║          %s (v%s)         ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
