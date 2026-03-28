@@ -30,8 +30,8 @@ L_MAIN_4="обслуживание менеджера"
 L_MAIN_0="выход"
 
 L_PROMPT_BACK="назад"
-L_MSG_WAIT_ENTER="нажмите [Enter] для продолжения..."
-L_ERR_NOT_INSTALLED="ошибка: прокси еще не установлен!"
+L_MSG_WAIT_ENTER="       нажмите [Enter] для продолжения..."
+L_ERR_NOT_INSTALLED="       ошибка: прокси еще не установлен!"
 # ==========================================================
 
 # path
@@ -243,7 +243,7 @@ submenu_users() {
                     U_SEC=$(openssl rand -hex 16)
                     sed -i "/\[access.user_max_unique_ips\]/a $UNAME = $ULIM" $CONF_FILE
                     echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
-                    systemctl restart telemt && echo -e "${GREEN}пользователь добавлен${NC}"; wait_user
+                    systemctl restart telemt && echo -e "${GREEN}       пользователь добавлен${NC}"; wait_user
                 fi ;;
             3) while true; do
                 mapfile -t USERS < <(get_user_list)
@@ -257,7 +257,7 @@ submenu_users() {
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     DEL_NAME="${USERS[$((U_IDX-1))]}"
                     sed -i "/^$DEL_NAME =/d" $CONF_FILE
-                    systemctl restart telemt && echo -e "${RED}пользователь удалён: $DEL_NAME${NC}"
+                    systemctl restart telemt && echo -e "${RED}       пользователь удалён: $DEL_NAME${NC}"
                     wait_user
                 fi
             done ;;
@@ -274,10 +274,10 @@ submenu_users() {
                 read -p "$(echo -e $ORANGE"       введите номер пользователя для смены лимита: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                    T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"новый лимит IP: "$NC)" N_LIM
+                    T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"       новый лимит IP: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
-                    systemctl restart telemt && echo -e "${GREEN}лимит IP обновлён${NC}"; wait_user
+                    systemctl restart telemt && echo -e "${GREEN}       лимит IP обновлён${NC}"; wait_user
                 fi
             done ;;
             0) break ;;
