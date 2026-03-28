@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Цвета для красоты
+# Цвета
 GREEN='\033[0;32m'
 NC='\033[0m'
 echo -e "${GREEN}=== Telemt Auto-Installer ===${NC}"
@@ -66,7 +66,6 @@ tls_domain = "$TLS_DOMAIN"
 [access.users]
 EOF
 
-# Добавляем пользователей и генерируем секреты
 for i in $(seq 1 $USER_COUNT); do
     SECRET=$(openssl rand -hex 16)
     echo "user$i = \"$SECRET\"" >> $CONFIG_PATH
@@ -103,19 +102,19 @@ systemctl daemon-reload
 systemctl enable telemt
 systemctl restart telemt
 
-echo -e "${GREEN}Сервис запущен!${NC}"
-sleep 2 # Ждем секунду, чтобы API поднялось
+echo -e "${GREEN}Сервис запущен! Ожидание инициализации сети...${NC}"
+sleep 4 # Даем время бинарнику определить свои IP
 
-# 8. Вывод ссылок
+# 8. Вывод ссылок (Исправленный парсинг)
 echo -e "\n${GREEN}=== ВАШИ ССЫЛКИ ДЛЯ ПОДКЛЮЧЕНИЯ ===${NC}"
-PUBLIC_IP=$(curl -s https://api.ipify.org)
-LINKS=$(curl -s http://127.0.0.1:9091/v1/users)
+LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r '.data[].links.tls[]')
 
-if [ -z "$LINKS" ]; then
-    echo "Ошибка: API не отвечает. Проверьте статус: systemctl status telemt"
+if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
+    echo "Ошибка: API не выдало ссылки. Проверьте: systemctl status telemt"
 else
-    # Парсим JSON и заменяем 0.0.0.0 на реальный IP
-    echo "$LINKS" | jq -r '.[]' | sed "s/0.0.0.0/$PUBLIC_IP/g"
+    # Если IP все еще 0.0.0.0 (бывает на некоторых VPS), подставляем вручную
+    PUBLIC_IP=$(curl -s https://api.ipify.org)
+    echo "$LINKS" | sed "s/0.0.0.0/$PUBLIC_IP/g"
 fi
 
-echo -e "\n${GREEN}Конфиг лежит тут: /etc/telemt/telemt.toml${NC}"
+echo -e "\n${GREEN}Конфиг: /etc/telemt/telemt.toml${NC}"
