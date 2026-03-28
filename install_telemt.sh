@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.0"
+CURRENT_VERSION="1.3.1"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -66,7 +66,7 @@ check_updates() {
     REMOTE_VER=$(curl -sSL -f --connect-timeout 2 --max-time 3 "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
         UPDATE_INFO=" \033[1;33m(новая версия v$REMOTE_VER)\033[0m"
-    else UPDATE_INFO=""; fi
+    else UPDATE_INFO="" fi
 }
 
 # get user list function
@@ -113,7 +113,16 @@ install_telemt() {
     echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Telemt${NC}"
     read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt ${MAIN_COLOR}(по умолчанию сервис работает на 443 порту): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
     read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(возможно использовать любой валидный SNI): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
-    read -p "$(echo -e $SKY_BLUE"         введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
+    
+    while true; do
+        read -p "$(echo -e $SKY_BLUE"         введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
+        if [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]]; then
+            break
+        else
+            echo -e "      ${RED}ошибка: имя должно содержать только латинские буквы и цифры!${NC}"
+        fi
+    done
+
     read -p "$(echo -e $SKY_BLUE"  задайте лимит IP адресов ${MAIN_COLOR}(если лимит не нужен, введите 0): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
     echo -e ""
     run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
@@ -219,7 +228,14 @@ submenu_users() {
                     show_links "${USERS[$((U_IDX-1))]}"; wait_user
                 fi
             done ;;
-            2) read -p "$(echo -e $ORANGE"       введите имя пользователя: "$NC)" UNAME
+            2) while true; do
+                read -p "$(echo -e $ORANGE"       введите имя пользователя: "$NC)" UNAME
+                if [[ "$UNAME" =~ ^[a-zA-Z0-9]+$ ]]; then
+                    break
+                else
+                    echo -e "      ${RED}ошибка: имя должно содержать только латинские буквы и цифры!${NC}"
+                fi
+               done
                 if [ -n "$UNAME" ]; then
                     read -p "$(echo -e $ORANGE"задайте лимит IP адресов (если лимит не нужен, введите 0): "$NC)" ULIM; ULIM=${ULIM:-0}
                     U_SEC=$(openssl rand -hex 16)
@@ -311,12 +327,12 @@ submenu_manager() {
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) echo -e "${SKY_BLUE}       обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
-               sync; chmod +x "$CLI_NAME"; exec "$CLI_NAME";
+               sync; chmod +x "$CLI_NAME"; echo -e "${GREEN}Готово!${NC}"; sleep 1; exec "$CLI_NAME";
                else echo -e "${RED}ошибка${NC}"; wait_user; fi ;;
             2) read -p "$(echo -e ${RED}"       внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               [[ $confirm == "y" ]] && cleanup_proxy && wait_user ;;
+               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy && wait_user; fi ;;
             3) read -p "$(echo -e ${RED}"       внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               if [[ $confirm == "y" ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
+               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
             0) break ;;
         esac
     done
