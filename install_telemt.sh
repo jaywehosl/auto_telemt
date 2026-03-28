@@ -3,7 +3,7 @@
 # ==========================================================
 # ПАРАМЕТРЫ И ВЕРСИЯ
 # ==========================================================
-CURRENT_VERSION="1.0.3"
+CURRENT_VERSION="1.0.5"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === БЛОК ТЕКСТОВЫХ СТРОК (ДЛЯ УДОБНОГО РЕДАКТИРОВАНИЯ) ===
@@ -15,7 +15,7 @@ L_STATUS_NONE="Не установлен"
 
 L_ITEM_1="УСТАНОВИТЬ Telemt (с нуля)"
 L_ITEM_2="Проверить статус (системный лог)"
-L_ITEM_3="Показать ссылки для Telegram"
+L_ITEM_3="Показать ссылки пользователя"
 L_ITEM_4="Добавить нового пользователя"
 L_ITEM_5="Удалить пользователя"
 L_ITEM_6="Изменить порт сервера"
@@ -25,6 +25,11 @@ L_ITEM_9="Остановить прокси"
 L_ITEM_10="ОБНОВИТЬ МЕНЕДЖЕР"
 L_ITEM_11="УДАЛИТЬ ВСЁ (Uninstall)"
 L_ITEM_0="Выход"
+
+L_PROMPT_USER="Имя первого пользователя (admin): "
+L_PROMPT_NEW_USER="Имя нового пользователя: "
+L_PROMPT_SELECT_SHOW="Выберите номер пользователя для просмотра ссылок:"
+L_PROMPT_SELECT_DEL="Выберите номер пользователя для УДАЛЕНИЯ:"
 
 L_STEP_PKG="Установка системных пакетов"
 L_STEP_BIN="Загрузка бинарника Telemt"
@@ -96,17 +101,19 @@ check_updates() {
     fi
 }
 
+# Функция вывода ссылок для конкретного юзера
 show_links() {
-    echo -e "\n${BOLD}${MAIN_COLOR}=== ВАШИ ССЫЛКИ ДЛЯ ПОДКЛЮЧЕНИЯ ===${NC}"
-    if [ ! -f "$CONF_FILE" ]; then
-        echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"
-        return
-    fi
+    local target_user="$1"
+    [ -z "$target_user" ] && return
+
+    echo -e "\n${BOLD}${MAIN_COLOR}=== ССЫЛКИ ДЛЯ: $target_user ===${NC}"
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
-    LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r '.data[].links.tls[]' 2>/dev/null)
+    
+    LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
+
     if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-        echo -e "${YELLOW}Ожидание генерации... (проверьте через 5 сек)${NC}"
+        echo -e "${YELLOW}Ссылки не найдены. Возможно, сервис еще запускается.${NC}"
     else
         for link in $LINKS; do
             if [[ $link == *"server=0.0.0.0"* ]]; then
@@ -124,6 +131,7 @@ install_telemt() {
     echo -e "\n${BOLD}${MAIN_COLOR}--- Установка Telemt ---${NC}"
     read -p "Порт (443): " P_PORT; P_PORT=${P_PORT:-443}
     read -p "SNI домен (google.com): " P_SNI; P_SNI=${P_SNI:-google.com}
+    read -p "$L_PROMPT_USER" P_USER; P_USER=${P_USER:-admin}
     echo -e ""
 
     run_step "$L_STEP_PKG" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
@@ -148,7 +156,7 @@ listen = \"127.0.0.1:9091\"
 [censorship]
 tls_domain = \"$P_SNI\"
 [access.users]
-admin = \"\$(openssl rand -hex 16)\"
+$P_USER = \"\$(openssl rand -hex 16)\"
 EOF
     chown -R telemt:telemt $CONF_DIR"
     run_step "$L_STEP_CONF" "$CMD_CONF"
@@ -177,7 +185,7 @@ EOF"
 
     echo -e "\n${GREEN}Установка завершена успешно!${NC}"
     sleep 2
-    show_links
+    show_links "$P_USER"
 }
 
 # Предварительная проверка
@@ -187,7 +195,6 @@ check_updates
 while true; do
     clear
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    # Центрируем заголовок с учетом версии
     printf "${BOLD}${MAIN_COLOR}║        %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
@@ -218,31 +225,52 @@ while true; do
         2) 
             if [ -f "$SERVICE_FILE" ]; then systemctl status telemt; else echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; fi
             wait_user ;;
-        3) show_links; wait_user ;;
+        3)
+            if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
+                echo -e "${BOLD}$L_PROMPT_SELECT_SHOW${NC}"
+                # Собираем юзеров в массив
+                mapfile -t USERS < <(grep -A 100 "\[access.users\]" "$CONF_FILE" | grep "=" | awk '{print $1}')
+                if [ ${#USERS[@]} -eq 0 ]; then echo "Пользователей нет.";
+                else
+                    for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                    read -p "Номер: " U_IDX
+                    if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                        show_links "${USERS[$((U_IDX-1))]}"
+                    else echo -e "${RED}Неверный выбор.${NC}"; fi
+                fi
+            fi
+            wait_user ;;
         4)
             if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
-                read -p "Имя нового пользователя: " UNAME
-                U_SEC=$(openssl rand -hex 16)
-                echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
-                systemctl restart telemt && echo -e "${GREEN}Пользователь '$UNAME' добавлен.${NC}"
-                show_links
+                read -p "$L_PROMPT_NEW_USER" UNAME
+                if [ -n "$UNAME" ]; then
+                    U_SEC=$(openssl rand -hex 16)
+                    echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
+                    systemctl restart telemt && echo -e "${GREEN}Пользователь '$UNAME' добавлен.${NC}"
+                    sleep 2; show_links "$UNAME"
+                fi
             fi
             wait_user ;;
         5)
             if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
-                echo -e "${BOLD}Текущие пользователи:${NC}"
-                grep -A 50 "\[access.users\]" $CONF_FILE | grep "=" | awk '{print $1}'
-                read -p "Имя для удаления: " UNAME
-                [ -n "$UNAME" ] && sed -i "/^$UNAME =/d" $CONF_FILE && systemctl restart telemt && echo -e "${YELLOW}Удален.${NC}"
+                echo -e "${BOLD}$L_PROMPT_SELECT_DEL${NC}"
+                mapfile -t USERS < <(grep -A 100 "\[access.users\]" "$CONF_FILE" | grep "=" | awk '{print $1}')
+                if [ ${#USERS[@]} -eq 0 ]; then echo "Пользователей нет.";
+                else
+                    for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                    read -p "Номер для удаления: " U_IDX
+                    if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                        DEL_NAME="${USERS[$((U_IDX-1))]}"
+                        sed -i "/^$DEL_NAME =/d" $CONF_FILE
+                        systemctl restart telemt && echo -e "${YELLOW}Пользователь '$DEL_NAME' удален.${NC}"
+                    else echo -e "${RED}Неверный выбор.${NC}"; fi
+                fi
             fi
             wait_user ;;
         6)
             if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
                 read -p "Новый порт: " N_PORT
-                if [[ $N_PORT =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE
-                    systemctl restart telemt && echo -e "${GREEN}Порт изменен.${NC}"
-                else echo -e "${RED}$L_ERR_PORT${NC}"; fi
+                [[ $N_PORT =~ ^[0-9]+$ ]] && sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}Порт изменен.${NC}" || echo -e "${RED}$L_ERR_PORT${NC}"
             fi
             wait_user ;;
         7)
@@ -252,21 +280,15 @@ while true; do
             fi
             wait_user ;;
         8) 
-            if [ -f "$SERVICE_FILE" ]; then 
-                systemctl restart telemt && echo -e "${GREEN}$L_MSG_RESTART_OK${NC}"
-            else echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; fi
+            [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}$L_MSG_RESTART_OK${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"
             wait_user ;;
         9) 
-            if [ -f "$SERVICE_FILE" ]; then
-                systemctl stop telemt && echo -e "${YELLOW}$L_MSG_STOP_OK${NC}"
-            else echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; fi
+            [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}$L_MSG_STOP_OK${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"
             wait_user ;;
         10)
             echo "Обновление из GitHub..."
             if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
-                sync # Принудительно сбрасываем буфер записи на диск
-                chmod +x "$CLI_NAME"
-                echo -e "${GREEN}$L_MSG_UPDATE_OK${NC}"
+                sync; chmod +x "$CLI_NAME"; echo -e "${GREEN}$L_MSG_UPDATE_OK${NC}"
                 sleep 1; exec "$CLI_NAME"
             else echo -e "${RED}Ошибка обновления.${NC}"; wait_user; fi ;;
         11)
