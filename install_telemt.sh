@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.2.0"
+CURRENT_VERSION="1.2.1"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -25,7 +25,7 @@ L_STATUS_NONE="не установлен"
 
 L_MAIN_1="управление сервисом"
 L_MAIN_2="управление пользователями"
-L_MAIN_3="настройки прокси"
+L_MAIN_3="настройки Telemt"
 L_MAIN_4="обслуживание менеджера"
 L_MAIN_0="выход"
 
@@ -41,7 +41,7 @@ CONF_FILE="$CONF_DIR/telemt.toml"
 SERVICE_FILE="/etc/systemd/system/telemt.service"
 CLI_NAME="/usr/local/bin/telemt"
 
-if [ "$EUID" -ne 0 ]; then echo -e "${RED}Ошибка: Нужен root${NC}"; exit 1; fi
+if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
 
 # --- functions ---
 
@@ -80,7 +80,7 @@ get_user_list() {
 show_links() {
     local target_user="$1"
     [ -z "$target_user" ] && return
-    echo -e "\n${BOLD}${MAIN_COLOR}=== ключи подключения: $target_user ===${NC}"
+    echo -e "\n${BOLD}${MAIN_COLOR}ключи подключения: $target_user ===${NC}"
     sleep 1.5
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
@@ -97,7 +97,7 @@ show_links() {
 }
 
 cleanup_proxy() {
-    echo -e "\n${BOLD}${SKY_BLUE}--- удаляем компоненты Telemt... ---${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}удаляем компоненты Telemt...${NC}"
     run_step "остановка службы" "systemctl stop telemt"
     run_step "отключение автозагрузки" "systemctl disable telemt"
     run_step "удаление бинарника" "rm -f $BIN_PATH"
@@ -110,7 +110,7 @@ cleanup_proxy() {
 }
 
 install_telemt() {
-    echo -e "\n${BOLD}${MAIN_COLOR}--- настройка и установка Telemt ---${NC}"
+    echo -e "\n${BOLD}${MAIN_COLOR}настройка и установка Telemt${NC}"
     read -p "$(echo -e $ORANGE"укажите порт для Telemt (по умолчанию сервис работает на 443 порту): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
     read -p "$(echo -e $ORANGE"укажите SNI для TLS (возможно использовать любой валидный SNI): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
     read -p "$(echo -e $ORANGE"введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
@@ -176,7 +176,7 @@ submenu_service() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║          УПРАВЛЕНИЕ  СЕРВИСОМ          ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║         УПРАВЛЕНИЕ   СЕРВИСОМ          ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
@@ -197,7 +197,7 @@ submenu_users() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║        УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ       ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║        УПРАВЛЕНИЕ  ПОЛЬЗОВАТЕЛЯМИ      ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}список пользователей и ссылки${NC}\n"
@@ -245,7 +245,9 @@ submenu_users() {
             done ;;
             4) while true; do
                 mapfile -t USERS < <(get_user_list)
-                clear; echo -e "${BOLD}${MAIN_COLOR}=== ЛИМИТЫ IP АДРЕСОВ ===${NC}"
+                clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}║           ЛИМИТЫ  IP  АДРЕСОВ          ║${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
                 for i in "${!USERS[@]}"; do
                     # we take ip limits out of its block section
                     CUR_LIM=$(grep "^${USERS[$i]} =" $CONF_FILE | grep -v "\"" | awk '{print $3}')
@@ -270,7 +272,7 @@ submenu_settings() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║                НАСТРОЙКИ               ║${NC}\n"
+        printf "${BOLD}${MAIN_COLOR}║           НАСТРОЙКИ   TELEMT           ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"
@@ -283,12 +285,12 @@ submenu_settings() {
             1) systemctl status telemt; wait_user ;;
             2) read -p "$(echo -e $ORANGE"введите новый порт: "$NC)" N_PORT
                 if [[ $N_PORT =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}Ок${NC}"
+                    sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}порт изменён, сервис перезапущен${NC}"
                 else echo -e "${RED}ошибка!${NC}"; fi
                 wait_user ;;
             3) read -p "$(echo -e $ORANGE"введите новый SNI: "$NC)" N_SNI
                 if [ -n "$N_SNI" ]; then
-                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}Ок${NC}"
+                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменён, сервис перезапущен${NC}"
                 else echo -e "${RED}ошибка!${NC}"; fi
                 wait_user ;;
             0) break ;;
