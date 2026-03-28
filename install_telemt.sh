@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.2.3"
+CURRENT_VERSION="1.2.4"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -251,7 +251,7 @@ submenu_users() {
                 for i in "${!USERS[@]}"; do
                     # we take ip limits out of its block section
                     CUR_LIM=$(grep "^${USERS[$i]} =" $CONF_FILE | grep -v "\"" | awk '{print $3}')
-                    printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (Лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
+                    printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (текущий лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
                 done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
                 read -p "$(echo -e $ORANGE"введите номер пользователя для смены лимита: "$NC)" U_IDX
@@ -313,9 +313,9 @@ submenu_manager() {
             1) echo -e "${SKY_BLUE}обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                sync; chmod +x "$CLI_NAME"; exec "$CLI_NAME";
                else echo -e "${RED}ошибка${NC}"; wait_user; fi ;;
-            2) read -p "$(echo -e $ORANGE"внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить?(yes/no)"$NC)" confirm
+            2) read -p "$(echo -e $ORANGE"внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(yes/no)"$NC)" confirm
                [[ $confirm == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "$(echo -e $ORANGE"внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить?(yes/no)"$NC)" confirm
+            3) read -p "$(echo -e $ORANGE"внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(yes/no)"$NC)" confirm
                if [[ $confirm == "y" ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
             0) break ;;
         esac
