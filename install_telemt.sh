@@ -3,10 +3,10 @@
 # ==========================================================
 # ПАРАМЕТРЫ И ВЕРСИЯ
 # ==========================================================
-CURRENT_VERSION="1.0.5"
+CURRENT_VERSION="1.0.6"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
-# === БЛОК ТЕКСТОВЫХ СТРОК (ДЛЯ УДОБНОГО РЕДЕДАКТИРОВАНИЯ) ===
+# === БЛОК ТЕКСТОВЫХ СТРОК (ДЛЯ УДОБНОГО РЕДАКТИРОВАНИЯ) ===
 L_MENU_HEADER="МЕНЕДЖЕР TELEMT"
 L_STATUS_LABEL="Статус прокси:"
 L_STATUS_RUN="Работает (Active)"
@@ -28,8 +28,9 @@ L_ITEM_0="Выход"
 
 L_PROMPT_USER="Имя первого пользователя (admin): "
 L_PROMPT_NEW_USER="Имя нового пользователя: "
-L_PROMPT_SELECT_SHOW="Выберите номер пользователя для просмотра ссылок:"
-L_PROMPT_SELECT_DEL="Выберите номер пользователя для УДАЛЕНИЯ:"
+L_PROMPT_SELECT_SHOW="Выберите пользователя для просмотра ссылок:"
+L_PROMPT_SELECT_DEL="Выберите пользователя для УДАЛЕНИЯ:"
+L_PROMPT_BACK="0 - Назад в главное меню"
 
 L_STEP_PKG="Установка системных пакетов"
 L_STEP_BIN="Загрузка бинарника Telemt"
@@ -39,7 +40,7 @@ L_STEP_START="Запуск прокси-сервера"
 
 L_ERR_NOT_INSTALLED="Ошибка: Прокси еще не установлен в системе!"
 L_ERR_PORT="Ошибка: Неверный формат порта (вводите только цифры)."
-L_MSG_WAIT_ENTER="Нажмите [Enter], чтобы вернуться в меню..."
+L_MSG_WAIT_ENTER="Нажмите [Enter], чтобы продолжить..."
 L_MSG_RESTART_OK="Прокси успешно перезапущен!"
 L_MSG_STOP_OK="Прокси остановлен."
 L_MSG_UPDATE_OK="Менеджер успешно обновлен! Перезапуск..."
@@ -93,10 +94,8 @@ run_step() {
 }
 
 check_updates() {
-    # Тянем версию с GitHub
     REMOTE_VER=$(curl -sSL -f "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
-        # Используем %b в printf позже, поэтому тут пишем коды
         UPDATE_INFO=" \033[1;33m(Доступно v$REMOTE_VER)\033[0m"
     else
         UPDATE_INFO=""
@@ -111,11 +110,10 @@ show_links() {
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     
-    # API запрос
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
 
     if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-        echo -e "${YELLOW}Ссылки не найдены. Подождите 5 сек или проверьте статус.${NC}"
+        echo -e "${YELLOW}Ссылки не найдены. Проверьте статус прокси.${NC}"
     else
         for link in $LINKS; do
             if [[ $link == *"server=0.0.0.0"* ]]; then
@@ -190,7 +188,7 @@ EOF"
     show_links "$P_USER"
 }
 
-# Предварительная проверка обновлений
+# Предварительная проверка
 check_updates
 
 # --- ЦИКЛ МЕНЮ ---
@@ -215,7 +213,6 @@ while true; do
     printf "  ${BOLD}${MAIN_COLOR} 7 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_7"
     printf "  ${BOLD}${MAIN_COLOR} 8 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_8"
     printf "  ${BOLD}${MAIN_COLOR} 9 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_9"
-    # ТУТ ИСПОЛЬЗУЕМ %b ДЛЯ ЦВЕТОВ ВНУТРИ UPDATE_INFO
     printf "  ${BOLD}${MAIN_COLOR}10 -${NC} ${BOLD}%s%b${NC}\n" "$L_ITEM_10" "$UPDATE_INFO"
     printf "  ${BOLD}${MAIN_COLOR}11 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_11"
     printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}%s${NC}\n" "$L_ITEM_0"
@@ -225,23 +222,25 @@ while true; do
 
     case $choice in
         1) install_telemt; wait_user ;;
-        2) 
-            if [ -f "$SERVICE_FILE" ]; then systemctl status telemt; else echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; fi
-            wait_user ;;
+        2) [ -f "$SERVICE_FILE" ] && systemctl status telemt || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
         3)
-            if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
-                echo -e "${BOLD}$L_PROMPT_SELECT_SHOW${NC}"
+            while true; do
+                clear
+                echo -e "${BOLD}${MAIN_COLOR}=== $L_ITEM_3 ===${NC}"
+                if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
                 mapfile -t USERS < <(grep -A 100 "\[access.users\]" "$CONF_FILE" | grep "=" | awk '{print $1}')
-                if [ ${#USERS[@]} -eq 0 ]; then echo "Пользователей нет.";
-                else
-                    for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
-                    read -p "Введите номер: " U_IDX
-                    if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                        show_links "${USERS[$((U_IDX-1))]}"
-                    else echo -e "${RED}Неверный выбор.${NC}"; fi
-                fi
-            fi
-            wait_user ;;
+                if [ ${#USERS[@]} -eq 0 ]; then echo "Пользователей нет."; wait_user; break; fi
+                
+                for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                echo -e "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}"
+                read -p "Выберите номер: " U_IDX
+                [[ "$U_IDX" == "0" ]] && break
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                    show_links "${USERS[$((U_IDX-1))]}"
+                    wait_user
+                else echo -e "${RED}Неверный выбор.${NC}"; sleep 1; fi
+            done
+            ;;
         4)
             if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
                 read -p "$L_PROMPT_NEW_USER" UNAME
@@ -254,21 +253,25 @@ while true; do
             fi
             wait_user ;;
         5)
-            if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
-                echo -e "${BOLD}$L_PROMPT_SELECT_DEL${NC}"
+            while true; do
+                clear
+                echo -e "${BOLD}${MAIN_COLOR}=== $L_ITEM_5 ===${NC}"
+                if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
                 mapfile -t USERS < <(grep -A 100 "\[access.users\]" "$CONF_FILE" | grep "=" | awk '{print $1}')
-                if [ ${#USERS[@]} -eq 0 ]; then echo "Пользователей нет.";
-                else
-                    for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
-                    read -p "Номер для удаления: " U_IDX
-                    if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                        DEL_NAME="${USERS[$((U_IDX-1))]}"
-                        sed -i "/^$DEL_NAME =/d" $CONF_FILE
-                        systemctl restart telemt && echo -e "${YELLOW}Пользователь '$DEL_NAME' удален.${NC}"
-                    else echo -e "${RED}Неверный выбор.${NC}"; fi
-                fi
-            fi
-            wait_user ;;
+                if [ ${#USERS[@]} -eq 0 ]; then echo "Пользователей нет."; wait_user; break; fi
+                
+                for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                echo -e "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}"
+                read -p "Выберите номер для удаления: " U_IDX
+                [[ "$U_IDX" == "0" ]] && break
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                    DEL_NAME="${USERS[$((U_IDX-1))]}"
+                    sed -i "/^$DEL_NAME =/d" $CONF_FILE
+                    systemctl restart telemt && echo -e "${YELLOW}Пользователь '$DEL_NAME' удален.${NC}"
+                    wait_user
+                else echo -e "${RED}Неверный выбор.${NC}"; sleep 1; fi
+            done
+            ;;
         6)
             if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; else
                 read -p "Новый порт: " N_PORT
@@ -281,12 +284,8 @@ while true; do
                 [ -n "$N_SNI" ] && sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменен.${NC}"
             fi
             wait_user ;;
-        8) 
-            [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}$L_MSG_RESTART_OK${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"
-            wait_user ;;
-        9) 
-            [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}$L_MSG_STOP_OK${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"
-            wait_user ;;
+        8) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}$L_MSG_RESTART_OK${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+        9) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}$L_MSG_STOP_OK${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
         10)
             echo "Обновление из GitHub..."
             if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
