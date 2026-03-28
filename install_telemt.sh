@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.5"
+CURRENT_VERSION="1.3.6"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -39,7 +39,6 @@ BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
 CONF_FILE="$CONF_DIR/telemt.toml"
 SERVICE_FILE="/etc/systemd/system/telemt.service"
-# ИЗМЕНЕНО: Команда вызова менеджера теперь tmt
 CLI_NAME="/usr/local/bin/tmt"
 
 if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
@@ -83,17 +82,25 @@ show_links() {
     local target_user="$1"
     [ -z "$target_user" ] && return
     echo -e "\n${BOLD}${SKY_BLUE}       ключи подключения для пользователя $target_user:${NC}"
-    sleep 1.5
-    IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
-    IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
+    # Увеличенная пауза для завершения STUN-кворума (особенно для IPv6)
+    sleep 4
+    IP4=$(curl -4 -s --connect-timeout 2 --max-time 3 https://api.ipify.org || echo "")
+    IP6=$(curl -6 -s --connect-timeout 2 --max-time 3 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
+    
     if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
         echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"
     else
         for link in $LINKS; do
-            if [[ $link == *"server=0.0.0.0"* ]]; then [ -n "$IP4" ] && echo -e "${BOLD}${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"
-            elif [[ $link == *"server=::"* ]]; then [ -n "$IP6" ] && echo -e "${BOLD}${MAIN_COLOR}${link//::/$IP6}${NC}"
-            else echo -e "${BOLD}${MAIN_COLOR}$link${NC}"; fi
+            if [[ $link == *"server=0.0.0.0"* ]]; then
+                if [ -n "$IP4" ]; then echo -e "${BOLD}${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"
+                else echo -e "${BOLD}${MAIN_COLOR}$link${NC}"; fi
+            elif [[ $link == *"server=::"* ]]; then
+                if [ -n "$IP6" ]; then echo -e "${BOLD}${MAIN_COLOR}${link//::/$IP6}${NC}"
+                else continue; fi # Если IPv6 на сервере нет, битую ссылку с :: не выводим
+            else
+                echo -e "${BOLD}${MAIN_COLOR}$link${NC}"
+            fi
         done
     fi
 }
@@ -333,14 +340,13 @@ submenu_manager() {
             2) read -p "$(echo -e ${RED}"       внимание! это действие удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy && wait_user; fi ;;
             3) read -p "$(echo -e ${RED}"       внимание! это действие полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
+               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; exit 0; fi ;;
             0) break ;;
         esac
     done
 }
 
 # --- main cycle ---
-# Автоматическая регистрация команды 'tmt' в системе
 if [ ! -f "$CLI_NAME" ]; then
     curl -sSL -f "$REPO_URL" -o "$CLI_NAME" 2>/dev/null || cp "$0" "$CLI_NAME"
     chmod +x "$CLI_NAME"
