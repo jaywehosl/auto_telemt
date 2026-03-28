@@ -8,13 +8,21 @@ SERVICE_FILE="/etc/systemd/system/telemt.service"
 CLI_NAME="/usr/local/bin/telemt"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
-# Цветовая схема (Жирный + Цвет #9ACD32)
-BOLD='\033[1m'
-MAIN_COLOR='\033[1;38;5;148m'
+# Цветовая схема (Жирный шрифт через tput + YellowGreen)
+if [[ -t 1 ]]; then
+    BOLD=$(tput bold)
+    NORMAL=$(tput sgr0)
+else
+    BOLD=""
+    NORMAL=""
+fi
+
+# Наш фирменный цвет #9ACD32 (ANSI 148)
+MAIN_COLOR='\033[38;5;148m'
 GREEN='\033[1;32m'
 RED='\033[1;31m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # Сброс
+NC='\033[0m' 
 
 # Проверка root
 if [ "$EUID" -ne 0 ]; then
@@ -128,9 +136,10 @@ EOF
 # --- МЕНЮ ---
 while true; do
     clear
-    echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BOLD}${MAIN_COLOR}║         МЕНЕДЖЕР TELEMT (CLI)          ║${NC}"
-    echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
+    # Используем printf для точного контроля стилей
+    printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
+    printf "${BOLD}${MAIN_COLOR}║         МЕНЕДЖЕР TELEMT (CLI)          ║${NC}\n"
+    printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
     if [ ! -f "$SERVICE_FILE" ]; then
         STATUS="${BOLD}${RED}Не установлен${NC}"
@@ -140,21 +149,30 @@ while true; do
         STATUS="${BOLD}${YELLOW}Остановлен (Inactive)${NC}"
     fi
 
-    echo -e "  Статус: $STATUS"
-    echo -e "${BOLD}${MAIN_COLOR}------------------------------------------${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}1)${NC} ${BOLD}УСТАНОВИТЬ Telemt${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}2)${NC} ${BOLD}Проверить статус (лог)${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}3)${NC} ${BOLD}Показать ссылки${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}4)${NC} ${BOLD}Добавить пользователя${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}5)${NC} ${BOLD}Удалить пользователя${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}6)${NC} ${BOLD}Изменить порт${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}7)${NC} ${BOLD}Изменить SNI (домен)${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}8)${NC} ${BOLD}Перезапустить прокси${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}9)${NC} ${BOLD}Остановить прокси${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}10)${NC} ${BOLD}ОБНОВИТЬ МЕНЕДЖЕР${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}11)${NC} ${BOLD}УДАЛИТЬ ВСЁ (Uninstall)${NC}"
-    echo -e "  ${BOLD}${MAIN_COLOR}0)${NC} ${BOLD}Выход${NC}"
-    echo -e "${BOLD}${MAIN_COLOR}------------------------------------------${NC}"
+    printf "  Статус: %b\n" "$STATUS"
+    printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
+    
+    # Отрисовка пунктов меню
+    menu_items=(
+        "УСТАНОВИТЬ Telemt"
+        "Проверить статус (лог)"
+        "Показать ссылки"
+        "Добавить пользователя"
+        "Удалить пользователя"
+        "Изменить порт"
+        "Изменить SNI (домен)"
+        "Перезапустить прокси"
+        "Остановить прокси"
+        "ОБНОВИТЬ МЕНЕДЖЕР"
+        "УДАЛИТЬ ВСЁ (Uninstall)"
+    )
+
+    for i in "${!menu_items[@]}"; do
+        printf "  ${BOLD}${MAIN_COLOR}%2d)${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${menu_items[$i]}"
+    done
+    printf "  ${BOLD}${MAIN_COLOR} 0)${NC} ${BOLD}Выход${NC}\n"
+    printf "${BOLD}${MAIN_COLOR}------------------------------------------${NC}\n"
+    
     read -p "Выберите действие: " choice
 
     case $choice in
@@ -193,11 +211,10 @@ while true; do
         8) systemctl restart telemt && echo "Перезапущено"; sleep 1 ;;
         9) systemctl stop telemt && echo "Остановлено"; sleep 1 ;;
         10)
-            echo "Обновление из GitHub (принудительно)..."
-            # Добавляем ?v=TIMESTAMP чтобы обойти кэш GitHub
+            echo "Обновление из GitHub..."
             if curl -sSL "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                 chmod +x "$CLI_NAME"
-                echo -e "${GREEN}Менеджер обновлен! Перезапуск...${NC}"
+                echo -e "${GREEN}Менеджер обновлен!${NC}"
                 sleep 1
                 exec "$CLI_NAME"
             else
