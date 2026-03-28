@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.1.7"
+CURRENT_VERSION="1.1.8"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
