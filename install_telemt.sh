@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.1"
+CURRENT_VERSION="1.3.2"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
@@ -66,7 +66,9 @@ check_updates() {
     REMOTE_VER=$(curl -sSL -f --connect-timeout 2 --max-time 3 "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
     if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
         UPDATE_INFO=" \033[1;33m(новая версия v$REMOTE_VER)\033[0m"
-    else UPDATE_INFO="" fi
+    else
+        UPDATE_INFO=""
+    fi
 }
 
 # get user list function
@@ -246,7 +248,7 @@ submenu_users() {
             3) while true; do
                 mapfile -t USERS < <(get_user_list)
                 clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}║         УДАЛЕНИЕ   ПОЛЬЗОВАТЕЛЕЙ       ║${NC}"
+                       echo -e "${BOLD}${MAIN_COLOR}║         УДАЛЕНИЕ   ПОЛЬЗОВАТЕЛЯ        ║${NC}"
                        echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
@@ -305,7 +307,7 @@ submenu_settings() {
                 wait_user ;;
             3) read -p "$(echo -e $ORANGE"       введите новый SNI: "$NC)" N_SNI
                 if [ -n "$N_SNI" ]; then
-                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменён, сервис перезапущен${NC}"
+                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменен, сервис перезапущен${NC}"
                 else echo -e "${RED}ошибка!${NC}"; fi
                 wait_user ;;
             0) break ;;
@@ -329,9 +331,9 @@ submenu_manager() {
             1) echo -e "${SKY_BLUE}       обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                sync; chmod +x "$CLI_NAME"; echo -e "${GREEN}Готово!${NC}"; sleep 1; exec "$CLI_NAME";
                else echo -e "${RED}ошибка${NC}"; wait_user; fi ;;
-            2) read -p "$(echo -e ${RED}"       внимание! это действите удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
+            2) read -p "$(echo -e ${RED}"       внимание! это действие удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy && wait_user; fi ;;
-            3) read -p "$(echo -e ${RED}"       внимание! это действите полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
+            3) read -p "$(echo -e ${RED}"       внимание! это действие полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; rm -f "$CLI_NAME"; echo -e "${RED}удаление прошло успешно${NC}"; exit 0; fi ;;
             0) break ;;
         esac
