@@ -346,19 +346,48 @@ submenu_tunnel() {
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
         printf "${BOLD}${MAIN_COLOR}║          IP-IP ТУННЕЛИ ДЛЯ XRAY        ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if ip link show $TUN_NAME > /dev/null 2>&1; then T_STAT="${GREEN}активен${NC}"; else T_STAT="${RED}выключен${NC}"; fi
-        printf "      статус туннеля: %b\n\n" "$T_STAT"
+        
+        # Логика определения статуса
+        if [ -d "/sys/class/net/$TUN_NAME" ]; then
+            IF_STAT="${GREEN}UP${NC}"
+            # Проверяем, кто мы, и пингуем соседа
+            MY_TUN_IP=$(ip addr show $TUN_NAME 2>/dev/null | grep -oP 'inet \K[\d.]+')
+            if [[ "$MY_TUN_IP" == "10.200.200.1" ]]; then
+                TARGET="10.200.200.2" # Мы РФ, пингуем Европу
+            else
+                TARGET="10.200.200.1" # Мы Европа, пингуем РФ
+            fi
+            
+            if ping -c 1 -W 1 $TARGET > /dev/null 2>&1; then
+                LNK_STAT="${GREEN}СВЯЗЬ ЕСТЬ${NC}"
+            else
+                LNK_STAT="${RED}ОБРЫВ (сосед молчит)${NC}"
+            fi
+        else
+            IF_STAT="${RED}DOWN${NC}"
+            LNK_STAT="${RED}НЕ СОЗДАН${NC}"
+        fi
+
+        printf "      интерфейс $TUN_NAME: %b\n" "$IF_STAT"
+        printf "      линк (ping $TARGET): %b\n\n" "$LNK_STAT"
+        
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на ВХОДНОЙ сервер (РФ)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на ВЫХОДНОЙ сервер (EU)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель (откатить всё)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить связность (ping)${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (через туннель)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice
         case $tchoice in
             1) setup_tunnel "russia"; wait_user ;;
             2) setup_tunnel "europe"; wait_user ;;
             3) cleanup_tunnel; wait_user ;;
-            4) echo "Пингуем шлюз туннеля..."; ping -c 3 10.200.200.1 || ping -c 3 10.200.200.2; wait_user ;;
+            4) 
+               echo -e "${SKY_BLUE}Тестируем скорость через 10.200.200.x...${NC}"
+               # Используем curl через интерфейс туннеля для замера
+               curl -o /dev/null -s -w "Скорость загрузки: %{speed_download} байт/сек\n" --interface 10.200.200.1 http://cachefly.cachefly.net/10mb.test || \
+               curl -o /dev/null -s -w "Скорость загрузки: %{speed_download} байт/сек\n" --interface 10.200.200.2 http://cachefly.cachefly.net/10mb.test
+               wait_user ;;
             0) break ;;
         esac
     done
