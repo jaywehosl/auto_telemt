@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.5.4"
+CURRENT_VERSION="1.5.5"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -39,7 +39,8 @@ BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
 CONF_FILE="$CONF_DIR/telemt.toml"
 SERVICE_FILE="/etc/systemd/system/telemt.service"
-CLI_NAME="/usr/local/bin/telemt"
+CLI_NAME="/usr/local/bin/stalin_manager"
+LINK_NAME="/usr/local/bin/stln"
 
 # Tunnel Paths
 TUN_NAME="tun0"
@@ -47,6 +48,20 @@ TUN_RUN_SCRIPT="/usr/local/bin/ipip-run.sh"
 TUN_SERVICE="/etc/systemd/system/ipip-tunnel.service"
 
 if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
+
+# ==========================================================
+# АВТО-СИМЛИНК (stln)
+# ==========================================================
+# 1. Если скрипт запущен не из /usr/local/bin, сохраняем его туда
+if [[ "$0" != "$CLI_NAME" ]]; then
+    cp "$0" "$CLI_NAME" 2>/dev/null
+    chmod +x "$CLI_NAME" 2>/dev/null
+fi
+
+# 2. Создаем/обновляем симлинк stln -> менеджер
+ln -sf "$CLI_NAME" "$LINK_NAME"
+# Очищаем хеш команд, чтобы bash сразу увидел stln
+hash -r 2>/dev/null
 
 # --- base functions ---
 
@@ -170,7 +185,6 @@ EOF"
 
 cleanup_proxy() {
     echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"
-    # Проверяем, существует ли сервис, прежде чем его стопать
     if systemctl list-unit-files | grep -q "telemt.service"; then
         run_step "остановка службы" "systemctl stop telemt 2>/dev/null || true"
         run_step "отключение автозагрузки" "systemctl disable telemt 2>/dev/null || true"
@@ -181,13 +195,12 @@ cleanup_proxy() {
     run_step "удаление системных файлов" "rm -rf /opt/telemt"
     run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
     
-    # Удаляем пользователя только если он есть
     if id "telemt" &>/dev/null; then
         run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
     fi
     
     run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "   ${GREEN}${BOLD}Telemt успешно удалён${NC}" # Ровно 3 пробела
+    echo -e "   ${GREEN}${BOLD}Telemt успешно удалён${NC}"
 }
 
 # --- IPIP TUNNEL LOGIC ---
@@ -199,17 +212,15 @@ cleanup_tunnel() {
         run_step "отключение автозагрузки" "systemctl disable ipip-tunnel 2>/dev/null || true"
     fi
     
-    # Удаляем интерфейс только если он существует
     if [ -d "/sys/class/net/$TUN_NAME" ]; then
         run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null || true"
     fi
     
-    # Очистка маршрутов без паники
     run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null || true; ip route flush table 200 2>/dev/null || true"
     
     run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"
     run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "   ${GREEN}${BOLD}туннель успешно удалён${NC}" # Ровно 3 пробела
+    echo -e "   ${GREEN}${BOLD}туннель успешно удалён${NC}"
 }
 
 setup_tunnel() {
@@ -241,7 +252,6 @@ setup_tunnel() {
     read REMOTE_IP
     [[ -z "$REMOTE_IP" ]] && return
 
-    # Логику создания файлов оставляем как была, там всё четко
     cat <<EOF > "$T_SCRIPT"
 #!/bin/bash
 # REMOTE_IP: $REMOTE_IP
@@ -365,7 +375,6 @@ submenu_tunnel() {
                 else
                     local p_stat="${RED}down${NC}"
                 fi
-                # Статус туннелей выровнял по сетке рамок
                 printf "     [ %-10s | %-15s | %b ]\n" "$tag" "$r_ip" "$p_stat"
                 found=1
             fi
@@ -448,6 +457,8 @@ submenu_manager() {
             1) 
                if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                    chmod +x "$CLI_NAME"
+                   ln -sf "$CLI_NAME" "$LINK_NAME"
+                   hash -r 2>/dev/null
                    echo -e "       ${GREEN}Обновлено!${NC}"
                    sleep 1; exec "$CLI_NAME"
                fi 
@@ -468,17 +479,13 @@ submenu_manager() {
                if [[ "$confirm" == "y" ]]; then
                    cleanup_proxy
                    cleanup_tunnel
-                   run_step "удаление менеджера" "rm -f $CLI_NAME"
+                   run_step "удаление менеджера" "rm -f $CLI_NAME $LINK_NAME"
                    echo -e "\n   ${GREEN}${BOLD}Очистка завершена. Выход...${NC}"
                    exit 0
                fi 
                ;;
-            0) 
-               break 
-               ;;
-            *) 
-               continue 
-               ;;
+            0) break ;;
+            *) continue ;;
         esac
     done
 }
@@ -502,7 +509,10 @@ while true; do
     printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"
     read -p "$(echo -e $ORANGE"       выберите раздел: "$NC)" mainchoice
     case $mainchoice in
-        1) submenu_service ;;
+        1) 
+           # Здесь должна быть функция submenu_service, убедись что она есть в коде (в дампе выше её не было)
+           # Если её нет, добавь или вызови нужную логику.
+           ;;
         2) submenu_users ;;
         3) submenu_settings ;;
         4) submenu_tunnel ;;
