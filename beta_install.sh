@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.6"
+CURRENT_VERSION="1.4.7"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -448,22 +448,23 @@ submenu_manager() {
         echo -ne "       ${ORANGE}выберите действие: ${NC}"
         read subchoice
         
-        case $subchoice in
+        case "$subchoice" in
             1) 
                if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
                    chmod +x "$CLI_NAME"
                    echo -e "       ${GREEN}Обновлено!${NC}"
                    sleep 1; exec "$CLI_NAME"
-               fi ;;
+               fi 
+               ;;
             2) 
                echo -ne "       ${ORANGE}Удалить Telemt? (y/n): ${NC}"
                read confirm
-               # Переводим в нижний регистр для надежности
                confirm=$(echo "$confirm" | tr '[:upper:]' '[:lower:]')
                if [[ "$confirm" == "y" ]]; then
                    cleanup_proxy
                    wait_user
-               fi ;;
+               fi 
+               ;;
             3) 
                echo -ne "       ${ORANGE}Удалить ВСЁ? (y/n): ${NC}"
                read confirm
@@ -474,8 +475,14 @@ submenu_manager() {
                    run_step "удаление менеджера" "rm -f $CLI_NAME"
                    echo -e "\n   ${GREEN}${BOLD}Очистка завершена. Выход...${NC}"
                    exit 0
-               fi ;;
-            0) break ;;
+               fi 
+               ;;
+            0) 
+               break 
+               ;;
+            *) 
+               continue 
+               ;;
         esac
     done
 }
