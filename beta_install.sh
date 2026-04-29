@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.4"
+CURRENT_VERSION="1.4.5"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -442,19 +442,31 @@ submenu_manager() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить сервис Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
+        
         case $subchoice in
-            1) if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
-               chmod +x "$CLI_NAME"
-               echo -e "       ${GREEN}Обновлено!${NC}" # Добавил отступ и цвет
-               sleep 1; exec "$CLI_NAME"; fi ;;
-            2) read -p "       Удалить Telemt? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "$(echo -e $ORANGE"       Удалить ВСЁ? (y/n): "$NC)" confirm
-               if [[ "$confirm" == "y" ]]; then
+            1) 
+               if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
+                   chmod +x "$CLI_NAME"
+                   echo -e "       ${GREEN}Обновлено!${NC}"
+                   sleep 1; exec "$CLI_NAME"
+               fi ;;
+            2) 
+               echo -ne "       ${ORANGE}Удалить Telemt? (y/n): ${NC}"
+               read confirm
+               if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+                   cleanup_proxy
+                   wait_user
+               fi ;;
+            3) 
+               echo -ne "       ${ORANGE}Удалить ВСЁ? (y/n): ${NC}"
+               read confirm
+               if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
                    cleanup_proxy
                    cleanup_tunnel
                    run_step "удаление менеджера" "rm -f $CLI_NAME"
-                   echo -e "\n${GREEN}Очистка завершена. Выход...${NC}"
+                   echo -e "\n       ${GREEN}${BOLD}Очистка завершена. Выход...${NC}"
                    exit 0
                fi ;;
             0) break ;;
