@@ -391,13 +391,14 @@ submenu_tunnel() {
                echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
                echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
                
-               # Тест на 500МБ[cite: 2]
-               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/500mb.test)
+               # Замер в байтах
+               SPEED_BPS=$(curl -L -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/500mb.test)
                
                if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0.000" ]]; then
                    echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
                else
-                   SPEED_MBPS=$(echo "scale=2; $SPEED_BPS * 8 / 1048576" | bc)
+                   # Считаем через awk — он гораздо лучше bc жует большие числа и дроби
+                   SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
                    echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                fi
                wait_user ;;
