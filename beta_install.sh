@@ -189,7 +189,6 @@ cleanup_proxy() {
     run_step "перезагрузка демонов" "systemctl daemon-reload"
     echo -e "   ${GREEN}${BOLD}Telemt успешно удалён${NC}" # Ровно 3 пробела
 }
-}
 
 # --- IPIP TUNNEL LOGIC ---
 
