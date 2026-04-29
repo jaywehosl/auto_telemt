@@ -370,7 +370,7 @@ submenu_tunnel() {
 
         printf "          статус IP-IP: %b\n" "$T_STATUS_STR"
         printf "          линк: %b\n" "$LNK_STR"
-        printf "          пинг: %b\n\n" "$PNG_STR"
+        printf "          пинг: %b\n" "$PNG_STR" # Убрал лишний \n
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"
@@ -383,21 +383,19 @@ submenu_tunnel() {
             2) setup_tunnel "europe"; wait_user ;;
             3) cleanup_tunnel; wait_user ;;
             4) 
-               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "${RED}       ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
+               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "       ${RED}ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
                echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
                echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
-               # Замер скорости через Tele2 (стабильнее CacheFly и без TLS редиректов)
                SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)
                if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
                    echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
                else
-                   # Расчет через awk для точности и корректного вывода нуля[cite: 2]
                    SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
                    echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                fi
                wait_user ;;
             0) break ;;
-        esac
+    esac
     done
 }
 
@@ -415,9 +413,11 @@ submenu_manager() {
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
         case $subchoice in
             1) if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
-               chmod +x "$CLI_NAME"; echo "Обновлено!"; sleep 1; exec "$CLI_NAME"; fi ;;
-            2) read -p "Удалить Telemt? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "Удалить ВСЁ? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && cleanup_tunnel && rm -f "$CLI_NAME" && exit 0 ;;
+               chmod +x "$CLI_NAME"
+               echo -e "       ${GREEN}Обновлено!${NC}" # Добавил отступ и цвет
+               sleep 1; exec "$CLI_NAME"; fi ;;
+            2) read -p "       Удалить Telemt? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && wait_user ;;
+            3) read -p "       Удалить ВСЁ? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && cleanup_tunnel && rm -f "$CLI_NAME" && exit 0 ;;
             0) break ;;
         esac
     done
