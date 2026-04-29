@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.5.3"
+CURRENT_VERSION="1.5.4"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -217,16 +217,16 @@ setup_tunnel() {
     echo ""
 
     while true; do
-        echo -ne "    задайте тег (lat): "
+        echo -ne "     задайте тег (lat): "
         read t_note
         if [[ "$t_note" =~ ^[a-zA-Z0-9_-]+$ ]]; then
             break
         else
-            echo -e "    ${RED}ошибка: только латиница!${NC}"
+            echo -e "     ${RED}ошибка: только латиница!${NC}"
         fi
     done
 
-    echo -ne "    ID подсети (0-20): "
+    echo -ne "     ID подсети (0-20): "
     read tun_id
     tun_id=${tun_id:-0}
 
@@ -237,10 +237,11 @@ setup_tunnel() {
 
     [[ "$mode" == "russia" ]] && local r_msg="IP выхода: " || local r_msg="IP входа: "
 
-    echo -ne "    $r_msg"
+    echo -ne "     $r_msg"
     read REMOTE_IP
     [[ -z "$REMOTE_IP" ]] && return
 
+    # Логику создания файлов оставляем как была, там всё четко
     cat <<EOF > "$T_SCRIPT"
 #!/bin/bash
 # REMOTE_IP: $REMOTE_IP
@@ -274,28 +275,7 @@ EOF
     systemctl daemon-reload &>/dev/null
     systemctl enable --now "$T_SERVICE" &>/dev/null
     
-    echo -e "    ${GREEN}туннель [$t_note] поднят${NC}"
-}
-# --- SUBMENUS ---
-
-submenu_service() {
-    while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║         УПРАВЛЕНИЕ   СЕРВИСОМ          ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}остановить Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
-        case $subchoice in
-            1) install_telemt; wait_user ;;
-            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}  Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}  Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            0) break ;;
-        esac
-    done
+    echo -e "     ${GREEN}туннель [$t_note] успешно поднят${NC}"
 }
 
 submenu_users() {
@@ -368,9 +348,9 @@ submenu_settings() {
 submenu_tunnel() {
     while true; do
         clear
-        printf "  ${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR}║         IP-IP ТУННЕЛИ ДЛЯ XRAY         ║${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}║         IP-IP ТУННЕЛИ ДЛЯ XRAY         ║${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         
         local found=0
         for script in /usr/local/bin/ipip-run-*.sh; do
@@ -385,42 +365,42 @@ submenu_tunnel() {
                 else
                     local p_stat="${RED}down${NC}"
                 fi
-                
-                printf "  [ %-10s | %-15s | %b ]\n" "$tag" "$r_ip" "$p_stat"
+                # Статус туннелей выровнял по сетке рамок
+                printf "     [ %-10s | %-15s | %b ]\n" "$tag" "$r_ip" "$p_stat"
                 found=1
             fi
         done
         
-        [[ $found -eq 0 ]] && printf "    ${GRAY}(активных туннелей нет)${NC}\n"
+        [[ $found -eq 0 ]] && printf "           ${GRAY}(активных туннелей нет)${NC}\n"
         echo ""
 
-        printf "  ${BOLD}${MAIN_COLOR}1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR}2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR}3 -${NC} ${BOLD}удалить туннель${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR}4 -${NC} ${BOLD}проверить скорость${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR}0 -${NC} ${BOLD}назад${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}3 -${NC} ${BOLD}удалить туннель${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}4 -${NC} ${BOLD}проверить скорость${NC}\n"
+        printf "   ${BOLD}${MAIN_COLOR}0 -${NC} ${BOLD}назад${NC}\n"
         
-        echo -ne "    ${ORANGE}выберите действие: ${NC}"
+        echo -ne "     ${ORANGE}выберите действие: ${NC}"
         read tchoice
         
         case $tchoice in
             1) setup_tunnel "russia"; wait_user ;;
             2) setup_tunnel "europe"; wait_user ;;
             3) 
-                echo -ne "    тег для удаления: "
+                echo -ne "     тег для удаления: "
                 read del_note
                 if [ -f "/etc/systemd/system/ipip-$del_note.service" ]; then
                     local del_id=$(grep "TUN_ID:" "/usr/local/bin/ipip-run-$del_note.sh" | awk '{print $3}')
                     systemctl disable --now "ipip-$del_note.service" &>/dev/null
                     rm -f "/etc/systemd/system/ipip-$del_note.service" "/usr/local/bin/ipip-run-$del_note.sh"
                     ip link delete "ipip-$del_id" 2>/dev/null
-                    echo -e "    ${GREEN}туннель $del_note удален${NC}"
+                    echo -e "     ${GREEN}туннель $del_note удален${NC}"
                 else
-                    echo -e "    ${RED}ошибка: тег не найден${NC}"
+                    echo -e "     ${RED}ошибка: тег не найден${NC}"
                 fi
                 wait_user ;;
             4) 
-                echo -ne "    тег для теста: "
+                echo -ne "     тег для теста: "
                 read s_note
                 local s_script="/usr/local/bin/ipip-run-$s_note.sh"
                 if [ -f "$s_script" ]; then
@@ -429,19 +409,19 @@ submenu_tunnel() {
                     local s_ip=$(ip addr show "$s_iface" 2>/dev/null | grep -oP 'inet \K[\d.]+')
                     
                     if [ -n "$s_ip" ]; then
-                        echo -e "    ${SKY_BLUE}тестируем через $s_note ($s_ip)...${NC}"
+                        echo -e "     ${SKY_BLUE}тестируем через $s_note ($s_ip)...${NC}"
                         SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface "$s_ip" http://speedtest.tele2.net/500MB.zip)
                         if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" ]]; then
-                            echo -e "    ${RED}ошибка замера скорости${NC}"
+                            echo -e "     ${RED}ошибка замера скорости${NC}"
                         else
                             SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
-                            echo -e "    ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
+                            echo -e "     ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                         fi
                     else
-                        echo -e "    ${RED}интерфейс не активен${NC}"
+                        echo -e "     ${RED}интерфейс туннеля не активен${NC}"
                     fi
                 else
-                    echo -e "    ${RED}туннель не найден${NC}"
+                    echo -e "     ${RED}туннель не найден${NC}"
                 fi
                 wait_user ;;
             0) break ;;
