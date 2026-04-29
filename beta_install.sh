@@ -370,14 +370,13 @@ submenu_tunnel() {
             PNG_STR="${RED}---${NC}"
         fi
 
-        printf "      статус IP-IP: %b\n" "$T_STATUS_STR"
-        printf "      линк: %b\n" "$LNK_STR"
-        printf "      пинг: %b\n\n" "$PNG_STR"
-        
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на ВХОДНОЙ сервер (РФ)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на ВЫХОДНОЙ сервер (EU)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель (откатить всё)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (100MB тест)${NC}\n"
+        printf "        статус IP-IP: %b\n" "$T_STATUS_STR"
+        printf "        линк: %b\n" "$LNK_STR"
+        printf "        пинг: %b\n\n" "$PNG_STR"
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость сквозного туннеля${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice
