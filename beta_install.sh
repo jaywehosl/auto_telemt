@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.8"
+CURRENT_VERSION="1.4.9"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -214,31 +214,33 @@ cleanup_tunnel() {
 
 setup_tunnel() {
     local mode=$1
-    clear
+    # Убрал clear, чтобы текст шел под меню
     
     if [[ "$mode" == "russia" ]]; then
-        local friendly_name="ВХОДНОЙ СЕРВЕР"
-        local remote_name="ВЫХОДНОГО"
+        local friendly_name="входной сервер"
+        local remote_name="выходного"
         local MY_TUN_IP="10.200.200.1"
     else
-        local friendly_name="ВЫХОДНОЙ СЕРВЕР"
-        local remote_name="ВХОДНОГО"
+        local friendly_name="выходной сервер"
+        local remote_name="входного"
         local MY_TUN_IP="10.200.200.2"
     fi
 
-    printf "${BOLD}${YELLOW}настройка IPIP туннеля ($friendly_name)${NC}\n"
+    printf "\n${BOLD}${YELLOW}настройка ipip туннеля ($friendly_name)${NC}\n"
 
-    # Тихий детект локального IP для команды создания туннеля
+    # Тихий детект локального IP для команды
     local LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
-    # Публичный IP для вывода пользователю
+    # Публичный IP для вывода
     local PUBLIC_IP=$(curl -s https://api.ipify.org)
 
-    echo -e "  ${BOLD}Ваш публичный IP:${NC} ${SKY_BLUE}$PUBLIC_IP${NC}"
-    echo -e "  ${BOLD}IP внутри туннеля:${NC} ${GREEN}$MY_TUN_IP${NC}"
-    echo -e "  ${GRAY}(используйте этот IP в конфигах Xray)${NC}"
-    echo -e "  ${GRAY}--------------------------------------------${NC}"
+    echo -e "  публичный IP этого сервера: ${SKY_BLUE}$PUBLIC_IP${NC}"
+    
+    # Подсказка по IP только для входного сервера
+    if [[ "$mode" == "russia" ]]; then
+        echo -e "  внутренний IP для xray: ${GREEN}$MY_TUN_IP${NC}"
+    fi
 
-    echo -ne "  ${BOLD}${ORANGE}введите ПУБЛИЧНЫЙ IP $remote_name сервера: ${NC}"
+    echo -ne "  введите публичный IP $remote_name сервера: "
     read REMOTE_IP
 
     if [[ -z "$REMOTE_IP" ]]; then
@@ -246,16 +248,13 @@ setup_tunnel() {
         return
     fi
 
-    echo -e "\n  ${SKY_BLUE}настраиваем компоненты...${NC}"
-
-    # Формируем переменные для скрипта
+    # Настройка компонентов
     if [[ "$mode" == "russia" ]]; then
         REMOTE_TUN_IP="10.200.200.2"
     else
         REMOTE_TUN_IP="10.200.200.1"
     fi
 
-    # Создание скрипта запуска (используем LOCAL_IP технически, но юзер его не видел)
     cat <<EOF > $TUN_RUN_SCRIPT
 #!/bin/bash
 ip link delete $TUN_NAME 2>/dev/null
@@ -269,7 +268,6 @@ EOF
 
     chmod +x $TUN_RUN_SCRIPT
 
-    # Создание системного юнита
     cat <<EOF > $TUN_SERVICE
 [Unit]
 Description=IPIP Tunnel for Xray
@@ -286,12 +284,11 @@ EOF
 
     run_step "применение конфигурации" "systemctl daemon-reload && systemctl enable --now ipip-tunnel"
     
-    echo -e "  ${SKY_BLUE}проверка связи...${NC}"
+    # Проверка пинга
     if ping -c 2 -W 3 $REMOTE_TUN_IP > /dev/null; then
-        echo -e "   ${GREEN}${BOLD}туннель успешно поднят и отвечает!${NC}"
+        echo -e "   ${GREEN}связь установлена, туннель работает${NC}"
     else
-        echo -e "   ${YELLOW}${BOLD}туннель создан, но удаленный конец ($REMOTE_TUN_IP) молчит.${NC}"
-        echo -e "   ${GRAY}(настройте вторую сторону, используя IP этого сервера: $PUBLIC_IP)${NC}"
+        echo -e "   ${YELLOW}туннель создан, ожидает настройки второй стороны ($REMOTE_TUN_IP)${NC}"
     fi
 }
 
