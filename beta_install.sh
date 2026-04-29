@@ -4,7 +4,7 @@
 # params
 # ==========================================================
 CURRENT_VERSION="1.4.0-IPIP"
-REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
+REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"[cite: 1]
 
 # === color grade ===
 BOLD=$(tput bold)
@@ -17,86 +17,95 @@ RED='\033[1;31m'              # red
 YELLOW='\033[1;33m'           # yellow
 
 # === strings ===
-L_MENU_HEADER="СТАЛИН-3000"
-L_STATUS_LABEL="cтатус Telemt:"
-L_STATUS_RUN="работает"
-L_STATUS_STOP="остановлен"
-L_STATUS_NONE="не установлен"
+L_MENU_HEADER="СТАЛИН-3000"[cite: 1]
+L_STATUS_LABEL="cтатус Telemt:"[cite: 1]
+L_STATUS_RUN="работает"[cite: 1]
+L_STATUS_STOP="остановлен"[cite: 1]
+L_STATUS_NONE="не установлен"[cite: 1]
 
-L_MAIN_1="управление сервисом"
-L_MAIN_2="управление пользователями"
-L_MAIN_3="настройки Telemt"
-L_MAIN_4="IP-IP туннели для XRAY"
-L_MAIN_5="обслуживание менеджера"
-L_MAIN_0="выход"
+L_MAIN_1="управление сервисом"[cite: 1]
+L_MAIN_2="управление пользователями"[cite: 1]
+L_MAIN_3="настройки Telemt"[cite: 1]
+L_MAIN_4="IP-IP туннели для XRAY"[cite: 1]
+L_MAIN_5="обслуживание менеджера"[cite: 1]
+L_MAIN_0="выход"[cite: 1]
 
-L_PROMPT_BACK="назад"
-L_MSG_WAIT_ENTER="       нажмите [Enter] для продолжения..."
-L_ERR_NOT_INSTALLED="       ошибка: сервис еще не установлен!"
+L_PROMPT_BACK="назад"[cite: 1]
+L_MSG_WAIT_ENTER="       нажмите [Enter] для продолжения..."[cite: 1]
+L_ERR_NOT_INSTALLED="       ошибка: сервис еще не установлен!"[cite: 1]
 
 # path
-BIN_PATH="/bin/telemt"
-CONF_DIR="/etc/telemt"
-CONF_FILE="$CONF_DIR/telemt.toml"
-SERVICE_FILE="/etc/systemd/system/telemt.service"
-CLI_NAME="/usr/local/bin/telemt"
+BIN_PATH="/bin/telemt"[cite: 1]
+CONF_DIR="/etc/telemt"[cite: 1]
+CONF_FILE="$CONF_DIR/telemt.toml"[cite: 1]
+SERVICE_FILE="/etc/systemd/system/telemt.service"[cite: 1]
+CLI_NAME="/usr/local/bin/telemt"[cite: 1]
+SHORTCUT_PATH="/usr/local/bin/stln"
 
 # Tunnel Paths
-TUN_NAME="tun0"
-TUN_RUN_SCRIPT="/usr/local/bin/ipip-run.sh"
-TUN_SERVICE="/etc/systemd/system/ipip-tunnel.service"
+TUN_NAME="tun0"[cite: 1]
+TUN_RUN_SCRIPT="/usr/local/bin/ipip-run.sh"[cite: 1]
+TUN_SERVICE="/etc/systemd/system/ipip-tunnel.service"[cite: 1]
 
-if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
+if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi[cite: 1]
 
 # --- base functions ---
 
+create_shortcut() {
+    local current_script=$(readlink -f "$0")
+    if [ "$current_script" != "$SHORTCUT_PATH" ]; then
+        ln -sf "$current_script" "$SHORTCUT_PATH"
+        chmod +x "$SHORTCUT_PATH"
+    fi
+}
+
 wait_user() {
-    printf "\n${ORANGE}${BOLD}$L_MSG_WAIT_ENTER${NC}"
-    read -r
+    printf "\n${ORANGE}${BOLD}$L_MSG_WAIT_ENTER${NC}"[cite: 1]
+    read -r[cite: 1]
 }
 
 run_step() {
-    local msg="$1"
-    local cmd="$2"
-    printf "  ${BOLD}${SKY_BLUE}*${NC} %-35s " "$msg..."
-    if eval "$cmd" > /dev/null 2>&1; then
-        printf "${GREEN}[готово]${NC}\n"
+    local msg="$1"[cite: 1]
+    local cmd="$2"[cite: 1]
+    printf "  ${BOLD}${SKY_BLUE}*${NC} %-35s " "$msg..."[cite: 1]
+    if eval "$cmd" > /dev/null 2>&1; then[cite: 1]
+        printf "${GREEN}[готово]${NC}\n"[cite: 1]
     else
-        printf "${RED}[ошибка!]${NC}\n"
-        return 1
+        printf "${RED}[ошибка!]${NC}\n"[cite: 1]
+        return 1[cite: 1]
     fi
 }
 
 check_updates() {
-    REMOTE_VER=$(curl -sSL -f --connect-timeout 2 --max-time 3 "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)
-    if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then
-        UPDATE_INFO=" \033[1;33m(новая версия v$REMOTE_VER)\033[0m"
+    REMOTE_VER=$(curl -sSL -f --connect-timeout 2 --max-time 3 "${REPO_URL}?v=$(date +%s)" 2>/dev/null | grep "^CURRENT_VERSION=" | cut -d'"' -f2 | head -n 1)[cite: 1]
+    if [[ -n "$REMOTE_VER" && "$REMOTE_VER" != "$CURRENT_VERSION" ]]; then[cite: 1]
+        UPDATE_INFO=" \033[1;33m(новая версия v$REMOTE_VER)\033[0m"[cite: 1]
     else
-        UPDATE_INFO=""
+        UPDATE_INFO=""[cite: 1]
     fi
 }
 
 get_user_list() {
-    if [ -f "$CONF_FILE" ]; then
-        sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
+    if [ -f "$CONF_FILE" ]; then[cite: 1]
+        sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u[cite: 1]
     fi
 }
 
 show_links() {
-    local target_user="$1"
-    [ -z "$target_user" ] && return
-    echo -e "\n${BOLD}${SKY_BLUE}       ключи подключения для пользователя $target_user:${NC}"
-    sleep 1.5
-    IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
-    IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
-    LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
-    if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
-        echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"
+    local target_user="$1"[cite: 1]
+    [ -z "$target_user" ] && return[cite: 1]
+    echo -e "\n${BOLD}${SKY_BLUE}       ключи подключения для пользователя $target_user:${NC}"[cite: 1]
+    sleep 1.5[cite: 1]
+    IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")[cite: 1]
+    IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")[cite: 1]
+    LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)[cite: 1]
+    if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then[cite: 1]
+        echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"[cite: 1]
     else
-        for link in $LINKS; do
-            if [[ $link == *"server=0.0.0.0"* ]]; then [ -n "$IP4" ] && echo -e "${BOLD}${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"
-            elif [[ $link == *"server=::"* ]]; then [ -n "$IP6" ] && echo -e "${BOLD}${MAIN_COLOR}${link//::/$IP6}${NC}"
-            else echo -e "${BOLD}${MAIN_COLOR}$link${NC}"; fi
+        for link in $LINKS; do[cite: 1]
+            if [[ $link == *"server=0.0.0.0"* ]]; then [ -n "$IP4" ] && echo -e "${BOLD}${MAIN_COLOR}${link//0.0.0.0/$IP4}${NC}"[cite: 1]
+            elif [[ $link == *"server=::"* ]]; then [ -n "$IP6" ] && echo -e "${BOLD}${MAIN_COLOR}${link//::/$IP6}${NC}"[cite: 1]
+            else echo -e "${BOLD}${MAIN_COLOR}$link${NC}"; fi[cite: 1]
         done
     fi
 }
@@ -104,22 +113,22 @@ show_links() {
 # --- Telemt installation ---
 
 install_telemt() {
-    echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Telemt${NC}"
-    read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt ${MAIN_COLOR}(по умолчанию 443): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
-    read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(например, google.com): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
+    echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Telemt${NC}"[cite: 1]
+    read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt ${MAIN_COLOR}(по умолчанию 443): "$NC)" P_PORT; P_PORT=${P_PORT:-443}[cite: 1]
+    read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(например, google.com): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}[cite: 1]
     
     while true; do
-        read -p "$(echo -e $SKY_BLUE"  введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
-        if [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]]; then break
-        else echo -e "      ${RED}ошибка: только латиница и цифры!${NC}"; fi
+        read -p "$(echo -e $SKY_BLUE"  введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}[cite: 1]
+        if [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]]; then break[cite: 1]
+        else echo -e "      ${RED}ошибка: только латиница и цифры!${NC}"; fi[cite: 1]
     done
 
-    read -p "$(echo -e $SKY_BLUE"  лимит IP ${MAIN_COLOR}(0 - без лимита): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
+    read -p "$(echo -e $SKY_BLUE"  лимит IP ${MAIN_COLOR}(0 - без лимита): "$NC)" P_LIM; P_LIM=${P_LIM:-0}[cite: 1]
     
-    run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
-    ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
-    URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
-    run_step "загрузка бинарных файлов" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
+    run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools bc -qq"[cite: 1]
+    ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)[cite: 1]
+    URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"[cite: 1]
+    run_step "загрузка бинарных файлов" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"[cite: 1]
     
     CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null || true; mkdir -p $CONF_DIR; 
     cat <<EOF > $CONF_FILE
@@ -141,8 +150,8 @@ $P_USER = $P_LIM
 [access.users]
 $P_USER = \"\$(openssl rand -hex 16)\"
 EOF
-    chown -R telemt:telemt $CONF_DIR"
-    run_step "создание конфига" "$CMD_CONF"
+    chown -R telemt:telemt $CONF_DIR"[cite: 1]
+    run_step "создание конфига" "$CMD_CONF"[cite: 1]
     
     CMD_SRV="cat <<EOF > $SERVICE_FILE
 [Unit]
@@ -161,49 +170,49 @@ CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
-EOF"
-    run_step "настройка службы" "$CMD_SRV"
-    run_step "запуск Telemt" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
-    echo -e "\n${BOLD}${GREEN}  установка завершена успешно!${NC}"
-    show_links "$P_USER"
+EOF"[cite: 1]
+    run_step "настройка службы" "$CMD_SRV"[cite: 1]
+    run_step "запуск Telemt" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"[cite: 1]
+    echo -e "\n${BOLD}${GREEN}  установка завершена успешно!${NC}"[cite: 1]
+    show_links "$P_USER"[cite: 1]
 }
 
 cleanup_proxy() {
-    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"
-    run_step "остановка службы" "systemctl stop telemt 2>/dev/null"
-    run_step "отключение автозагрузки" "systemctl disable telemt 2>/dev/null"
-    run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
-    run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"
-    run_step "удаление системных файлов" "rm -rf /opt/telemt"
-    run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
-    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
-    run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"[cite: 1]
+    run_step "остановка службы" "systemctl stop telemt 2>/dev/null"[cite: 1]
+    run_step "отключение автозагрузки" "systemctl disable telemt 2>/dev/null"[cite: 1]
+    run_step "удаление бинарных файлов" "rm -f $BIN_PATH"[cite: 1]
+    run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"[cite: 1]
+    run_step "удаление системных файлов" "rm -rf /opt/telemt"[cite: 1]
+    run_step "удаление системного юнита" "rm -f $SERVICE_FILE"[cite: 1]
+    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"[cite: 1]
+    run_step "перезагрузка демонов" "systemctl daemon-reload"[cite: 1]
+    echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"[cite: 1]
 }
 
 # --- IPIP TUNNEL LOGIC ---
 
 cleanup_tunnel() {
-    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты туннеля...${NC}"
-    run_step "остановка службы туннеля" "systemctl stop ipip-tunnel 2>/dev/null"
-    run_step "отключение автозагрузки" "systemctl disable ipip-tunnel 2>/dev/null"
-    run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null"
-    run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null; ip route flush table 200 2>/dev/null"
-    run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"
-    run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    Туннель успешно удалён${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты туннеля...${NC}"[cite: 1]
+    run_step "остановка службы туннеля" "systemctl stop ipip-tunnel 2>/dev/null"[cite: 1]
+    run_step "отключение автозагрузки" "systemctl disable ipip-tunnel 2>/dev/null"[cite: 1]
+    run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null"[cite: 1]
+    run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null; ip route flush table 200 2>/dev/null"[cite: 1]
+    run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"[cite: 1]
+    run_step "перезагрузка демонов" "systemctl daemon-reload"[cite: 1]
+    echo -e "${GREEN}${BOLD}    Туннель успешно удалён${NC}"[cite: 1]
 }
 
 setup_tunnel() {
-    local mode=$1
-    echo -e "\n${BOLD}${MAIN_COLOR}  настройка IPIP туннеля ($mode)${NC}"
-    LOCAL_IP=$(ip route get 1.1.1.1 | grep -oP 'src \K\S+')
-    MAIN_IF=$(ip route | grep default | awk '{print $5}' | head -n1)
-    echo -e "  ${SKY_BLUE}Ваш локальный IP:${NC} $LOCAL_IP"
-    read -p "$(echo -e $ORANGE"  введите ПУБЛИЧНЫЙ IP удаленного сервера: "$NC)" REMOTE_IP
-    if [ -z "$REMOTE_IP" ]; then echo -e "${RED}ошибка: IP пуст!${NC}"; return; fi
+    local mode=$1[cite: 1]
+    echo -e "\n${BOLD}${MAIN_COLOR}  настройка IPIP туннеля ($mode)${NC}"[cite: 1]
+    LOCAL_IP=$(ip route get 1.1.1.1 | grep -oP 'src \K\S+')[cite: 1]
+    MAIN_IF=$(ip route | grep default | awk '{print $5}' | head -n1)[cite: 1]
+    echo -e "  ${SKY_BLUE}Ваш локальный IP:${NC} $LOCAL_IP"[cite: 1]
+    read -p "$(echo -e $ORANGE"  введите ПУБЛИЧНЫЙ IP удаленного сервера: "$NC)" REMOTE_IP[cite: 1]
+    if [ -z "$REMOTE_IP" ]; then echo -e "${RED}ошибка: IP пуст!${NC}"; return; fi[cite: 1]
 
-    if [ "$mode" == "europe" ]; then
+    if [ "$mode" == "europe" ]; then[cite: 1]
         cat <<EOF > $TUN_RUN_SCRIPT
 #!/bin/bash
 ip link delete $TUN_NAME 2>/dev/null
@@ -235,7 +244,7 @@ ip route add default via 10.200.200.2 dev $TUN_NAME table 200
 ip rule add from 10.200.200.1 table 200
 EOF
     fi
-    chmod +x $TUN_RUN_SCRIPT
+    chmod +x $TUN_RUN_SCRIPT[cite: 1]
     cat <<EOF > $TUN_SERVICE
 [Unit]
 Description=IPIP Tunnel Service
@@ -247,23 +256,23 @@ RemainAfterExit=yes
 [Install]
 WantedBy=multi-user.target
 EOF
-    run_step "запуск службы туннеля" "systemctl daemon-reload && systemctl enable ipip-tunnel && systemctl restart ipip-tunnel"
-    echo -e "\n${BOLD}${GREEN}  Туннель поднят!${NC}"
+    run_step "запуск службы туннеля" "systemctl daemon-reload && systemctl enable ipip-tunnel && systemctl restart ipip-tunnel"[cite: 1]
+    echo -e "\n${BOLD}${GREEN}  Туннель поднят!${NC}"[cite: 1]
 }
 
 # --- SUBMENUS ---
 
 submenu_service() {
     while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║         УПРАВЛЕНИЕ   СЕРВИСОМ          ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}остановить Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
+        clear[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}║         УПРАВЛЕНИЕ   СЕРВИСОМ          ║${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить Telemt${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}остановить Telemt${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"[cite: 1]
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice[cite: 1]
         case $subchoice in
             1) install_telemt; wait_user ;;
             2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}  Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
@@ -275,17 +284,17 @@ submenu_service() {
 
 submenu_users() {
     while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║        УПРАВЛЕНИЕ  ПОЛЬЗОВАТЕЛЯМИ      ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}список пользователей и ссылки${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}добавить пользователя${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удаление пользователей${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}настроить лимит IP${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
+        clear[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}║        УПРАВЛЕНИЕ  ПОЛЬЗОВАТЕЛЯМИ      ║${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"[cite: 1]
+        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}список пользователей и ссылки${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}добавить пользователя${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удаление пользователей${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}настроить лимит IP${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"[cite: 1]
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice[cite: 1]
         case $subchoice in
             1) while true; do
                 mapfile -t USERS < <(get_user_list)
@@ -321,16 +330,16 @@ submenu_users() {
 
 submenu_settings() {
     while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║           НАСТРОЙКИ   TELEMT           ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
+        clear[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}║           НАСТРОЙКИ   TELEMT           ║${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"[cite: 1]
+        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"[cite: 1]
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice[cite: 1]
         case $subchoice in
             1) journalctl -u telemt -n 50; wait_user ;;
             2) read -p "Новый порт: " N_PORT; sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt; wait_user ;;
@@ -342,64 +351,63 @@ submenu_settings() {
 
 submenu_tunnel() {
     while true; do
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║          IP-IP ТУННЕЛИ ДЛЯ XRAY        ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
+        clear[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}║          IP-IP ТУННЕЛИ ДЛЯ XRAY        ║${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"[cite: 1]
         
-        if [ -d "/sys/class/net/$TUN_NAME" ]; then
-            T_STATUS_STR="${BOLD}${GREEN}активен${NC}"
-            MY_TUN_IP=$(ip addr show $TUN_NAME 2>/dev/null | grep -oP 'inet \K[\d.]+')
-            [[ "$MY_TUN_IP" == "10.200.200.1" ]] && TARGET="10.200.200.2" || TARGET="10.200.200.1"
+        if [ -d "/sys/class/net/$TUN_NAME" ]; then[cite: 1]
+            T_STATUS_STR="${BOLD}${GREEN}активен${NC}"[cite: 1]
+            MY_TUN_IP=$(ip addr show $TUN_NAME 2>/dev/null | grep -oP 'inet \K[\d.]+')[cite: 1]
+            [[ "$MY_TUN_IP" == "10.200.200.1" ]] && TARGET="10.200.200.2" || TARGET="10.200.200.1"[cite: 1]
             
-            PING_RES=$(ping -c 1 -W 1 $TARGET 2>/dev/null | grep 'time=' | awk -F'time=' '{print $2}' | cut -d' ' -f1)
+            PING_RES=$(ping -c 1 -W 1 $TARGET 2>/dev/null | grep 'time=' | awk -F'time=' '{print $2}' | cut -d' ' -f1)[cite: 1]
             
-            if [ -z "$PING_RES" ]; then
-                LNK_STR="${BOLD}${RED}обрыв${NC}"
-                PNG_STR="${RED}---${NC}"
+            if [ -z "$PING_RES" ]; then[cite: 1]
+                LNK_STR="${BOLD}${RED}обрыв${NC}"[cite: 1]
+                PNG_STR="${RED}---${NC}"[cite: 1]
             else
-                LNK_STR="${BOLD}${GREEN}есть${NC}"
-                INT_PING=${PING_RES%.*}
-                if [ "$INT_PING" -lt 50 ]; then PNG_STR="${GREEN}${PING_RES} ms${NC}"
-                elif [ "$INT_PING" -lt 100 ]; then PNG_STR="${YELLOW}${PING_RES} ms${NC}"
-                else PNG_STR="${RED}${PING_RES} ms${NC}"; fi
+                LNK_STR="${BOLD}${GREEN}есть${NC}"[cite: 1]
+                INT_PING=${PING_RES%.*}[cite: 1]
+                if [ "$INT_PING" -lt 50 ]; then PNG_STR="${GREEN}${PING_RES} ms${NC}"[cite: 1]
+                elif [ "$INT_PING" -lt 100 ]; then PNG_STR="${YELLOW}${PING_RES} ms${NC}"[cite: 1]
+                else PNG_STR="${RED}${PING_RES} ms${NC}"; fi[cite: 1]
             fi
         else
-            T_STATUS_STR="${BOLD}${RED}не установлен${NC}"
-            LNK_STR="${RED}нет${NC}"
-            PNG_STR="${RED}---${NC}"
+            T_STATUS_STR="${BOLD}${RED}не установлен${NC}"[cite: 1]
+            LNK_STR="${RED}нет${NC}"[cite: 1]
+            PNG_STR="${RED}---${NC}"[cite: 1]
         fi
 
-        printf "        статус IP-IP: %b\n" "$T_STATUS_STR"
-        printf "        линк: %b\n" "$LNK_STR"
-        printf "        пинг: %b\n\n" "$PNG_STR"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость сквозного туннеля${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        printf "      статус IP-IP: %b\n" "$T_STATUS_STR"[cite: 1]
+        printf "      линк: %b\n" "$LNK_STR"[cite: 1]
+        printf "      пинг: %b\n\n" "$PNG_STR"[cite: 1]
         
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (500MB тест)${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"[cite: 1]
+        
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice[cite: 1]
         case $tchoice in
             1) setup_tunnel "russia"; wait_user ;;
             2) setup_tunnel "europe"; wait_user ;;
             3) cleanup_tunnel; wait_user ;;
             4) 
-               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "${RED}       ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
-               # Проверка наличия bc для расчетов
-               if ! command -v bc &> /dev/null; then apt-get install -y bc -qq &>/dev/null; fi
+               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "${RED}       ошибка: туннель не поднят!${NC}"; wait_user; continue; fi[cite: 1]
+               if ! command -v bc &> /dev/null; then apt-get install -y bc -qq &>/dev/null; fi[cite: 1]
                
-               echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
-               echo -e "       ${ORANGE}(загрузка файла 100MB, подождите)${NC}"
+               echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"[cite: 1]
+               echo -e "       ${ORANGE}(загрузка файла 500MB, подождите)${NC}"[cite: 1]
                
-               # Тест на 100МБ файле
-               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/100mb.test)
+               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/500mb.test)[cite: 1]
                
-               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0.000" ]]; then
-                   echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
+               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0.000" ]]; then[cite: 1]
+                   echo -e "       ${RED}ошибка: не удалось провести замер${NC}"[cite: 1]
                else
-                   SPEED_MBPS=$(echo "scale=2; $SPEED_BPS * 8 / 1048576" | bc)
-                   echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
+                   SPEED_MBPS=$(echo "scale=2; $SPEED_BPS * 8 / 1048576" | bc)[cite: 1]
+                   echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"[cite: 1]
                fi
                wait_user ;;
             0) break ;;
@@ -409,44 +417,45 @@ submenu_tunnel() {
 
 submenu_manager() {
     while true; do
-        check_updates
-        clear
-        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║         ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА         ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}обновить менеджер${UPDATE_INFO}${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить сервис Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
+        check_updates[cite: 1]
+        clear[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}║         ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА         ║${NC}\n"[cite: 1]
+        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}обновить менеджер${UPDATE_INFO}${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить сервис Telemt${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"[cite: 1]
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"[cite: 1]
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice[cite: 1]
         case $subchoice in
-            1) if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
-               chmod +x "$CLI_NAME"; echo "Обновлено!"; sleep 1; exec "$CLI_NAME"; fi ;;
-            2) read -p "Удалить Telemt? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "Удалить ВСЁ? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && cleanup_tunnel && rm -f "$CLI_NAME" && exit 0 ;;
+            1) if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then[cite: 1]
+               chmod +x "$CLI_NAME"; echo "Обновлено!"; sleep 1; exec "$CLI_NAME"; fi ;;[cite: 1]
+            2) read -p "Удалить Telemt? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && wait_user ;;[cite: 1]
+            3) read -p "Удалить ВСЁ? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && cleanup_tunnel && rm -f "$CLI_NAME" && rm -f "$SHORTCUT_PATH" && exit 0 ;;[cite: 1]
             0) break ;;
         esac
     done
 }
 
 # --- main cycle ---
+create_shortcut
 while true; do
-    check_updates
-    clear
-    printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║           %s (v%s)         ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
-    printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-    if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
-    elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
-    else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
-    printf "  %s %b\n" "      $L_STATUS_LABEL" "$STATUS"
-    printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_MAIN_1${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_MAIN_2${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}$L_MAIN_4${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 5 -${NC} ${BOLD}$L_MAIN_5${NC}\n"
-    printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"
-    read -p "$(echo -e $ORANGE"       выберите раздел: "$NC)" mainchoice
+    check_updates[cite: 1]
+    clear[cite: 1]
+    printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"[cite: 1]
+    printf "${BOLD}${MAIN_COLOR}║           %s (v%s)         ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"[cite: 1]
+    printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"[cite: 1]
+    if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"[cite: 1]
+    elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"[cite: 1]
+    else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi[cite: 1]
+    printf "  %s %b\n" "      $L_STATUS_LABEL" "$STATUS"[cite: 1]
+    printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_MAIN_1${NC}\n"[cite: 1]
+    printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_MAIN_2${NC}\n"[cite: 1]
+    printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"[cite: 1]
+    printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}$L_MAIN_4${NC}\n"[cite: 1]
+    printf "  ${BOLD}${MAIN_COLOR} 5 -${NC} ${BOLD}$L_MAIN_5${NC}\n"[cite: 1]
+    printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"[cite: 1]
+    read -p "$(echo -e $ORANGE"       выберите раздел: "$NC)" mainchoice[cite: 1]
     case $mainchoice in
         1) submenu_service ;;
         2) submenu_users ;;
