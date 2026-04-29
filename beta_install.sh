@@ -347,34 +347,37 @@ submenu_tunnel() {
         printf "${BOLD}${MAIN_COLOR}║          IP-IP ТУННЕЛИ ДЛЯ XRAY        ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         
-        # Логика определения статуса
         if [ -d "/sys/class/net/$TUN_NAME" ]; then
-            IF_STAT="${GREEN}UP${NC}"
-            # Проверяем, кто мы, и пингуем соседа
+            T_STATUS_STR="${BOLD}${GREEN}активен${NC}"
             MY_TUN_IP=$(ip addr show $TUN_NAME 2>/dev/null | grep -oP 'inet \K[\d.]+')
-            if [[ "$MY_TUN_IP" == "10.200.200.1" ]]; then
-                TARGET="10.200.200.2" # Мы РФ, пингуем Европу
-            else
-                TARGET="10.200.200.1" # Мы Европа, пингуем РФ
-            fi
+            [[ "$MY_TUN_IP" == "10.200.200.1" ]] && TARGET="10.200.200.2" || TARGET="10.200.200.1"
             
-            if ping -c 1 -W 1 $TARGET > /dev/null 2>&1; then
-                LNK_STAT="${GREEN}СВЯЗЬ ЕСТЬ${NC}"
+            PING_RES=$(ping -c 1 -W 1 $TARGET 2>/dev/null | grep 'time=' | awk -F'time=' '{print $2}' | cut -d' ' -f1)
+            
+            if [ -z "$PING_RES" ]; then
+                LNK_STR="${BOLD}${RED}обрыв${NC}"
+                PNG_STR="${RED}---${NC}"
             else
-                LNK_STAT="${RED}ОБРЫВ (сосед молчит)${NC}"
+                LNK_STR="${BOLD}${GREEN}есть${NC}"
+                INT_PING=${PING_RES%.*}
+                if [ "$INT_PING" -lt 50 ]; then PNG_STR="${GREEN}${PING_RES} ms${NC}"
+                elif [ "$INT_PING" -lt 100 ]; then PNG_STR="${YELLOW}${PING_RES} ms${NC}"
+                else PNG_STR="${RED}${PING_RES} ms${NC}"; fi
             fi
         else
-            IF_STAT="${RED}DOWN${NC}"
-            LNK_STAT="${RED}НЕ СОЗДАН${NC}"
+            T_STATUS_STR="${BOLD}${RED}не установлен${NC}"
+            LNK_STR="${RED}нет${NC}"
+            PNG_STR="${RED}---${NC}"
         fi
 
-        printf "      интерфейс $TUN_NAME: %b\n" "$IF_STAT"
-        printf "      линк (ping $TARGET): %b\n\n" "$LNK_STAT"
+        printf "      статус IP-IP: %b\n" "$T_STATUS_STR"
+        printf "      линк: %b\n" "$LNK_STR"
+        printf "      пинг: %b\n\n" "$PNG_STR"
         
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на ВХОДНОЙ сервер (РФ)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на ВЫХОДНОЙ сервер (EU)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель (откатить всё)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (через туннель)${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (100MB тест)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice
@@ -383,10 +386,22 @@ submenu_tunnel() {
             2) setup_tunnel "europe"; wait_user ;;
             3) cleanup_tunnel; wait_user ;;
             4) 
-               echo -e "${SKY_BLUE}Тестируем скорость через 10.200.200.x...${NC}"
-               # Используем curl через интерфейс туннеля для замера
-               curl -o /dev/null -s -w "Скорость загрузки: %{speed_download} байт/сек\n" --interface 10.200.200.1 http://cachefly.cachefly.net/10mb.test || \
-               curl -o /dev/null -s -w "Скорость загрузки: %{speed_download} байт/сек\n" --interface 10.200.200.2 http://cachefly.cachefly.net/10mb.test
+               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "${RED}       ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
+               # Проверка наличия bc для расчетов
+               if ! command -v bc &> /dev/null; then apt-get install -y bc -qq &>/dev/null; fi
+               
+               echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
+               echo -e "       ${ORANGE}(загрузка файла 100MB, подождите)${NC}"
+               
+               # Тест на 100МБ файле
+               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/100mb.test)
+               
+               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0.000" ]]; then
+                   echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
+               else
+                   SPEED_MBPS=$(echo "scale=2; $SPEED_BPS * 8 / 1048576" | bc)
+                   echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
+               fi
                wait_user ;;
             0) break ;;
         esac
