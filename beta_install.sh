@@ -187,11 +187,14 @@ cleanup_tunnel() {
     echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты туннеля...${NC}"
     run_step "остановка службы туннеля" "systemctl stop ipip-tunnel 2>/dev/null"
     run_step "отключение автозагрузки" "systemctl disable ipip-tunnel 2>/dev/null"
-    run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null"
-    run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null; ip route flush table 200 2>/dev/null"
-    run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"
-    run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    Туннель успешно удалён${NC}"
+    run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null || true"[cite: 2]
+    
+    # Добавляем || true, чтобы отсутствие правил не вызывало статус [ошибка!]
+    run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null || true; ip route flush table 200 2>/dev/null || true"[cite: 2]
+    
+    run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"[cite: 2]
+    run_step "перезагрузка демонов" "systemctl daemon-reload"[cite: 2]
+    echo -e "${GREEN}${BOLD}    Туннель успешно удалён${NC}"[cite: 2]
 }
 
 setup_tunnel() {
@@ -370,7 +373,7 @@ submenu_tunnel() {
 
         printf "          статус IP-IP: %b\n" "$T_STATUS_STR"
         printf "          линк: %b\n" "$LNK_STR"
-        printf "          пинг: %b\n" "$PNG_STR" # Убрал лишний \n
+        printf "          пинг: %b\n" "$PNG_STR"
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"
@@ -381,21 +384,35 @@ submenu_tunnel() {
         case $tchoice in
             1) setup_tunnel "russia"; wait_user ;;
             2) setup_tunnel "europe"; wait_user ;;
-            3) cleanup_tunnel; wait_user ;;
-            4) 
-               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "       ${RED}ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
-               echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
-               echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
-               SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)
-               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
-                   echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
+            3) 
+               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then
+                   echo -e "       ${RED}ошибка: туннель еще не установлен!${NC}"
                else
-                   SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
-                   echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
+                   read -p "$(echo -e $ORANGE"       удалить туннель? (y/n): "$NC)" confirm
+                   if [[ "$confirm" == "y" ]]; then
+                       cleanup_tunnel
+                   else
+                       echo -e "       ${SKY_BLUE}отмена удаления${NC}"
+                   fi
+               fi
+               wait_user ;;
+            4) 
+               if [ ! -d "/sys/class/net/$TUN_NAME" ]; then 
+                   echo -e "       ${RED}ошибка: туннель не поднят!${NC}"[cite: 2]
+               else
+                   echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"[cite: 2]
+                   echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"[cite: 2]
+                   SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)[cite: 2]
+                   if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
+                       echo -e "       ${RED}ошибка: не удалось провести замер${NC}"[cite: 2]
+                   else
+                       SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")[cite: 2]
+                       echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"[cite: 2]
+                   fi
                fi
                wait_user ;;
             0) break ;;
-    esac
+        esac
     done
 }
 
