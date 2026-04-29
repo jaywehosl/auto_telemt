@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.3"
+CURRENT_VERSION="1.4.4"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -170,13 +170,22 @@ EOF"
 
 cleanup_proxy() {
     echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"
-    run_step "остановка службы" "systemctl stop telemt 2>/dev/null"
-    run_step "отключение автозагрузки" "systemctl disable telemt 2>/dev/null"
+    # Проверяем, существует ли сервис, прежде чем его стопать
+    if systemctl list-unit-files | grep -q "telemt.service"; then
+        run_step "остановка службы" "systemctl stop telemt 2>/dev/null || true"
+        run_step "отключение автозагрузки" "systemctl disable telemt 2>/dev/null || true"
+    fi
+    
     run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
     run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"
     run_step "удаление системных файлов" "rm -rf /opt/telemt"
     run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
-    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
+    
+    # Удаляем пользователя только если он есть
+    if id "telemt" &>/dev/null; then
+        run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
+    fi
+    
     run_step "перезагрузка демонов" "systemctl daemon-reload"
     echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"
 }
@@ -185,16 +194,22 @@ cleanup_proxy() {
 
 cleanup_tunnel() {
     echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты туннеля...${NC}"
-    run_step "остановка службы туннеля" "systemctl stop ipip-tunnel 2>/dev/null"
-    run_step "отключение автозагрузки" "systemctl disable ipip-tunnel 2>/dev/null"
-    run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null || true"[cite: 2]
+    if systemctl list-unit-files | grep -q "ipip-tunnel.service"; then
+        run_step "остановка службы туннеля" "systemctl stop ipip-tunnel 2>/dev/null || true"
+        run_step "отключение автозагрузки" "systemctl disable ipip-tunnel 2>/dev/null || true"
+    fi
     
-    # Добавляем || true, чтобы отсутствие правил не вызывало статус [ошибка!]
-    run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null || true; ip route flush table 200 2>/dev/null || true"[cite: 2]
+    # Удаляем интерфейс только если он существует
+    if [ -d "/sys/class/net/$TUN_NAME" ]; then
+        run_step "удаление интерфейса $TUN_NAME" "ip link delete $TUN_NAME 2>/dev/null || true"
+    fi
     
-    run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"[cite: 2]
-    run_step "перезагрузка демонов" "systemctl daemon-reload"[cite: 2]
-    echo -e "${GREEN}${BOLD}    Туннель успешно удалён${NC}"[cite: 2]
+    # Очистка маршрутов без паники
+    run_step "очистка правил маршрутизации" "ip rule del from 10.200.200.1 table 200 2>/dev/null || true; ip route flush table 200 2>/dev/null || true"
+    
+    run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"
+    run_step "перезагрузка демонов" "systemctl daemon-reload"
+    echo -e "${GREEN}${BOLD}    туннель успешно удалён${NC}"
 }
 
 setup_tunnel() {
@@ -434,7 +449,14 @@ submenu_manager() {
                echo -e "       ${GREEN}Обновлено!${NC}" # Добавил отступ и цвет
                sleep 1; exec "$CLI_NAME"; fi ;;
             2) read -p "       Удалить Telemt? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && wait_user ;;
-            3) read -p "       Удалить ВСЁ? (y/n): " confirm; [[ "$confirm" == "y" ]] && cleanup_proxy && cleanup_tunnel && rm -f "$CLI_NAME" && exit 0 ;;
+            3) read -p "$(echo -e $ORANGE"       Удалить ВСЁ? (y/n): "$NC)" confirm
+               if [[ "$confirm" == "y" ]]; then
+                   cleanup_proxy
+                   cleanup_tunnel
+                   run_step "удаление менеджера" "rm -f $CLI_NAME"
+                   echo -e "\n${GREEN}Очистка завершена. Выход...${NC}"
+                   exit 0
+               fi ;;
             0) break ;;
         esac
     done
