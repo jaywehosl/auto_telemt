@@ -386,21 +386,21 @@ submenu_tunnel() {
             3) cleanup_tunnel; wait_user ;;
             4) 
                if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "${RED}       ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
-               if ! command -v bc &> /dev/null; then apt-get install -y bc -qq &>/dev/null; fi
                
                echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
                echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
                
-               # Замер в байтах
-               SPEED_BPS=$(curl -L -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/500mb.test)
+               # Берем среднюю скорость в байтах/сек
+               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/500mb.test)
                
-               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0.000" ]]; then
+               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
                    echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
                else
-                   # Считаем через awk — он гораздо лучше bc жует большие числа и дроби
+                   # Считаем через awk: (байты * 8 бит) / 1024 / 1024 = Мбит/с
                    SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
                    echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                fi
+               wait_user ;;
                wait_user ;;
             0) break ;;
         esac
