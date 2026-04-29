@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.5.0"
+CURRENT_VERSION="1.5.1"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -214,46 +214,48 @@ cleanup_tunnel() {
 
 setup_tunnel() {
     local mode=$1
-    printf "\n${BOLD}${YELLOW}настройка нового туннеля${NC}\n"
+    printf "\n${BOLD}${YELLOW}настройка туннеля${NC}\n"
 
-    # Спрашиваем имя-метку (только латиница, без пробелов)
-    echo -ne "  введите метку для туннеля (напр. msk, piter, nsk): "
-    read t_note
-    t_note=${t_note:-"node"}
-    
-    # Спрашиваем ID для уникальности ресурсов
-    echo -ne "  введите ID туннеля (0-20): "
+    # Валидация тега
+    while true; do
+        echo -ne "  задайте тег для подключения: "
+        read t_note
+        if [[ "$t_note" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            break
+        else
+            echo -e "  ${RED}ошибка: используйте только латиницу и цифры${NC}"
+        fi
+    done
+
+    echo -ne "  ID (0-20): "
     read tun_id
     tun_id=${tun_id:-0}
 
+    # Имя интерфейса теперь тоже привязано к тегу для наглядности в ip
     local T_NAME="ipip-$t_note"
     local T_SERVICE="ipip-$t_note.service"
     local T_SCRIPT="/usr/local/bin/ipip-run-$t_note.sh"
 
-    # Логика IP адресов
     if [[ "$mode" == "russia" ]]; then
         local MY_TUN_IP="10.200.$tun_id.1"
-        local REMOTE_TUN_IP="10.200.$tun_id.2"
-        local r_name="выходного"
+        local r_msg="публичный IP выходного сервера: "
     else
         local MY_TUN_IP="10.200.$tun_id.2"
-        local REMOTE_TUN_IP="10.200.$tun_id.1"
-        local r_name="входного"
+        local r_msg="публичный IP входного сервера: "
     fi
 
     local LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
-    local PUBLIC_IP=$(curl -s https://api.ipify.org)
-
-    echo -e "  публичный IP этого сервера: ${SKY_BLUE}$PUBLIC_IP${NC}"
-    echo -ne "  введите публичный IP $r_name сервера: "
+    echo -e "  ваш IP: ${SKY_BLUE}$LOCAL_IP${NC}"
+    
+    echo -ne "  $r_msg"
     read REMOTE_IP
     [[ -z "$REMOTE_IP" ]] && return
 
-    # Создаем скрипт с комментарием в первой строке для парсинга
     cat <<EOF > $T_SCRIPT
 #!/bin/bash
 # REMOTE_IP: $REMOTE_IP
-# NOTE: $t_note
+# TAG: $t_note
+# TUN_ID: $tun_id
 ip link delete $T_NAME 2>/dev/null
 ip tunnel add $T_NAME mode ipip remote $REMOTE_IP local $LOCAL_IP ttl 255
 ip addr add $MY_TUN_IP/30 dev $T_NAME
@@ -263,13 +265,11 @@ ip rule del from $MY_TUN_IP table \$TABLE_ID 2>/dev/null
 ip rule add from $MY_TUN_IP table \$TABLE_ID
 ip route add default dev $T_NAME table \$TABLE_ID
 EOF
-
     chmod +x $T_SCRIPT
 
-    # В Description юнита тоже пишем инфу
     cat <<EOF > /etc/systemd/system/$T_SERVICE
 [Unit]
-Description=IPIP Tunnel to $REMOTE_IP ($t_note)
+Description=IPIP Tunnel [$t_note]
 After=network.target
 
 [Service]
@@ -281,7 +281,8 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-    run_step "запуск $T_NAME" "systemctl daemon-reload && systemctl enable --now $T_SERVICE"
+    systemctl daemon-reload && systemctl enable --now "$T_SERVICE" &>/dev/null
+    echo -e "  ${GREEN}готово${NC}"
 }
 
 # --- SUBMENUS ---
@@ -380,27 +381,21 @@ submenu_tunnel() {
         printf "${BOLD}${MAIN_COLOR}║         IP-IP ТУННЕЛИ ДЛЯ XRAY         ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         
-        # Динамический список активных туннелей
         local found=0
-        for tun_path in /sys/class/net/ipip-*; do
-            if [ -d "$tun_path" ]; then
-                local iface=$(basename "$tun_path")
-                local script_file="/usr/local/bin/ipip-run-${iface#ipip-}.sh"
-                local r_ip=$(grep "REMOTE_IP:" "$script_file" 2>/dev/null | awk '{print $3}')
-                local i_ip=$(ip addr show "$iface" 2>/dev/null | grep -oP 'inet \K[\d.]+')
+        for script in /usr/local/bin/ipip-run-*.sh; do
+            if [ -f "$script" ]; then
+                local tag=$(grep "TAG:" "$script" | awk '{print $3}')
+                local r_ip=$(grep "REMOTE_IP:" "$script" | awk '{print $3}')
+                local iface="ipip-$tag"
                 
-                # Пинг соседа
-                local last_octet=${i_ip##*.}
-                local partner_internal=""
-                [[ "$last_octet" == "1" ]] && partner_internal="${i_ip%.*}.2" || partner_internal="${i_ip%.*}.1"
-                
-                if ping -c 1 -W 1 "$partner_internal" &>/dev/null; then
+                # Проверяем, поднят ли конкретно этот интерфейс
+                if [ -d "/sys/class/net/$iface" ]; then
                     local p_stat="${GREEN}up${NC}"
                 else
                     local p_stat="${RED}down${NC}"
                 fi
                 
-                printf "  [ %-10s | c айпи: %-15s | статус: %b ]\n" "${iface#ipip-}" "$r_ip" "$p_stat"
+                printf "  [ %-10s | %-15s | %b ]\n" "$tag" "$r_ip" "$p_stat"
                 found=1
             fi
         done
@@ -410,43 +405,40 @@ submenu_tunnel() {
 
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить конкретный туннель${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (через msk/node)${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
         
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice
+        echo ""
+        read -p "$(echo -e $ORANGE"  выберите действие: "$NC)" tchoice
         case $tchoice in
             1) setup_tunnel "russia"; wait_user ;;
             2) setup_tunnel "europe"; wait_user ;;
             3) 
-                echo -ne "  введите метку туннеля для удаления (напр. msk): "
+                echo -ne "  введите тег для удаления: "
                 read del_note
+                local del_iface="ipip-$del_note"
                 if [ -f "/etc/systemd/system/ipip-$del_note.service" ]; then
-                    systemctl disable --now ipip-$del_note.service 2>/dev/null
-                    rm -f "/etc/systemd/system/ipip-$del_note.service"
-                    rm -f "/usr/local/bin/ipip-run-$del_note.sh"
-                    ip link delete ipip-$del_note 2>/dev/null
-                    echo -e "  ${GREEN}туннель $del_note удален${NC}"
+                    systemctl disable --now "ipip-$del_note.service" &>/dev/null
+                    rm -f "/etc/systemd/system/ipip-$del_note.service" "/usr/local/bin/ipip-run-$del_note.sh"
+                    ip link delete "$del_iface" 2>/dev/null
+                    echo -e "  ${GREEN}удалено${NC}"
                 else
-                    echo -e "  ${RED}ошибка: туннель с такой меткой не найден${NC}"
+                    echo -e "  ${RED}не найдено${NC}"
                 fi
                 wait_user ;;
             4) 
-                echo -ne "  через какую метку тест (напр. msk): "
+                echo -ne "  тег для теста: "
                 read s_note
                 local s_iface="ipip-$s_note"
                 if [ -d "/sys/class/net/$s_iface" ]; then
                     local s_ip=$(ip addr show "$s_iface" 2>/dev/null | grep -oP 'inet \K[\d.]+')
-                    echo -e "  ${SKY_BLUE}тестируем через $s_iface ($s_ip)...${NC}"
+                    echo -e "  ${SKY_BLUE}тест через $s_iface...${NC}"
                     SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface "$s_ip" http://speedtest.tele2.net/500MB.zip)
-                    if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" ]]; then
-                        echo -e "  ${RED}ошибка замера${NC}"
-                    else
-                        SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
-                        echo -e "  ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
-                    fi
+                    SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
+                    echo -e "  ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                 else
-                    echo -e "  ${RED}ошибка: интерфейс $s_iface не найден${NC}"
+                    echo -e "  ${RED}интерфейс не найден${NC}"
                 fi
                 wait_user ;;
             0) break ;;
