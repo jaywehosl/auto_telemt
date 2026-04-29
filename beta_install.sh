@@ -212,7 +212,6 @@ cleanup_tunnel() {
     run_step "перезагрузка демонов" "systemctl daemon-reload"
     echo -e "   ${GREEN}${BOLD}туннель успешно удалён${NC}" # Ровно 3 пробела
 }
-}
 
 setup_tunnel() {
     local mode=$1
