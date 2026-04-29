@@ -3,18 +3,18 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.0"
+CURRENT_VERSION="1.4.2-FIX"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
 BOLD=$(tput bold)
 NC='\033[0m' 
-MAIN_COLOR='\033[38;5;148m'   # yellow-green
-ORANGE='\033[1;38;5;214m'     # orange 
-SKY_BLUE='\033[1;38;5;81m'    # blue
-GREEN='\033[1;32m'            # green
-RED='\033[1;31m'              # red
-YELLOW='\033[1;33m'           # yellow
+MAIN_COLOR='\033[38;5;148m'
+ORANGE='\033[1;38;5;214m'
+SKY_BLUE='\033[1;38;5;81m'
+GREEN='\033[1;32m'
+RED='\033[1;31m'
+YELLOW='\033[1;33m'
 
 # === strings ===
 L_MENU_HEADER="СТАЛИН-3000"
@@ -351,9 +351,7 @@ submenu_tunnel() {
             T_STATUS_STR="${BOLD}${GREEN}активен${NC}"
             MY_TUN_IP=$(ip addr show $TUN_NAME 2>/dev/null | grep -oP 'inet \K[\d.]+')
             [[ "$MY_TUN_IP" == "10.200.200.1" ]] && TARGET="10.200.200.2" || TARGET="10.200.200.1"
-            
             PING_RES=$(ping -c 1 -W 1 $TARGET 2>/dev/null | grep 'time=' | awk -F'time=' '{print $2}' | cut -d' ' -f1)
-            
             if [ -z "$PING_RES" ]; then
                 LNK_STR="${BOLD}${RED}обрыв${NC}"
                 PNG_STR="${RED}---${NC}"
@@ -369,13 +367,14 @@ submenu_tunnel() {
             LNK_STR="${RED}нет${NC}"
             PNG_STR="${RED}---${NC}"
         fi
+
         printf "          статус IP-IP: %b\n" "$T_STATUS_STR"
         printf "          линк: %b\n" "$LNK_STR"
         printf "          пинг: %b\n\n" "$PNG_STR"
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить на входной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}установить на выходной сервер${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удалить туннель${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость сквозного туннеля${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}проверить скорость (500MB тест)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         
         read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" tchoice
@@ -385,16 +384,15 @@ submenu_tunnel() {
             3) cleanup_tunnel; wait_user ;;
             4) 
                if [ ! -d "/sys/class/net/$TUN_NAME" ]; then echo -e "${RED}       ошибка: туннель не поднят!${NC}"; wait_user; continue; fi
-               # Проверка наличия bc для расчетов
-               if ! command -v bc &> /dev/null; then apt-get install -y bc -qq &>/dev/null; fi
                echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
-               echo -e "       ${ORANGE}(загрузка файла 100MB, подождите)${NC}"
-               # Тест на 100МБ файле
-               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/100mb.test)
-               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0.000" ]]; then
+               echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
+               # Замер скорости через Tele2 (стабильнее CacheFly и без TLS редиректов)
+               SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)
+               if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
                    echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
                else
-                   SPEED_MBPS=$(echo "scale=2; $SPEED_BPS * 8 / 1048576" | bc)
+                   # Расчет через awk для точности и корректного вывода нуля[cite: 2]
+                   SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
                    echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                fi
                wait_user ;;
