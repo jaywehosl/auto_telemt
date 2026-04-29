@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.2-FIX"
+CURRENT_VERSION="1.4.3"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
