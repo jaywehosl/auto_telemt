@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.7"
+CURRENT_VERSION="1.4.8"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -214,59 +214,85 @@ cleanup_tunnel() {
 
 setup_tunnel() {
     local mode=$1
-    echo -e "\n${BOLD}${MAIN_COLOR}  настройка IPIP туннеля ($mode)${NC}"
-    LOCAL_IP=$(ip route get 1.1.1.1 | grep -oP 'src \K\S+')
-    MAIN_IF=$(ip route | grep default | awk '{print $5}' | head -n1)
-    echo -e "  ${SKY_BLUE}Ваш локальный IP:${NC} $LOCAL_IP"
-    read -p "$(echo -e $ORANGE"  введите ПУБЛИЧНЫЙ IP удаленного сервера: "$NC)" REMOTE_IP
-    if [ -z "$REMOTE_IP" ]; then echo -e "${RED}ошибка: IP пуст!${NC}"; return; fi
-
-    if [ "$mode" == "europe" ]; then
-        cat <<EOF > $TUN_RUN_SCRIPT
-#!/bin/bash
-ip link delete $TUN_NAME 2>/dev/null
-ip tunnel add $TUN_NAME mode ipip local $LOCAL_IP remote $REMOTE_IP ttl 255
-ip link set dev $TUN_NAME mtu 1400
-ip addr add 10.200.200.2/30 dev $TUN_NAME
-ip link set dev $TUN_NAME up
-sysctl -w net.ipv4.ip_forward=1
-iptables -t nat -D POSTROUTING -s 10.200.200.0/30 -o $MAIN_IF -j MASQUERADE 2>/dev/null
-iptables -t nat -A POSTROUTING -s 10.200.200.0/30 -o $MAIN_IF -j MASQUERADE
-iptables -A FORWARD -i $TUN_NAME -j ACCEPT
-iptables -A FORWARD -o $TUN_NAME -j ACCEPT
-EOF
+    clear
+    
+    if [[ "$mode" == "russia" ]]; then
+        local friendly_name="ВХОДНОЙ СЕРВЕР"
+        local remote_name="ВЫХОДНОГО"
+        local MY_TUN_IP="10.200.200.1"
     else
-        cat <<EOF > $TUN_RUN_SCRIPT
+        local friendly_name="ВЫХОДНОЙ СЕРВЕР"
+        local remote_name="ВХОДНОГО"
+        local MY_TUN_IP="10.200.200.2"
+    fi
+
+    printf "${BOLD}${YELLOW}настройка IPIP туннеля ($friendly_name)${NC}\n"
+
+    # Тихий детект локального IP для команды создания туннеля
+    local LOCAL_IP=$(ip route get 1.1.1.1 2>/dev/null | grep -oP 'src \K[\d.]+')
+    # Публичный IP для вывода пользователю
+    local PUBLIC_IP=$(curl -s https://api.ipify.org)
+
+    echo -e "  ${BOLD}Ваш публичный IP:${NC} ${SKY_BLUE}$PUBLIC_IP${NC}"
+    echo -e "  ${BOLD}IP внутри туннеля:${NC} ${GREEN}$MY_TUN_IP${NC}"
+    echo -e "  ${GRAY}(используйте этот IP в конфигах Xray)${NC}"
+    echo -e "  ${GRAY}--------------------------------------------${NC}"
+
+    echo -ne "  ${BOLD}${ORANGE}введите ПУБЛИЧНЫЙ IP $remote_name сервера: ${NC}"
+    read REMOTE_IP
+
+    if [[ -z "$REMOTE_IP" ]]; then
+        echo -e "  ${RED}ошибка: IP не может быть пустым${NC}"
+        return
+    fi
+
+    echo -e "\n  ${SKY_BLUE}настраиваем компоненты...${NC}"
+
+    # Формируем переменные для скрипта
+    if [[ "$mode" == "russia" ]]; then
+        REMOTE_TUN_IP="10.200.200.2"
+    else
+        REMOTE_TUN_IP="10.200.200.1"
+    fi
+
+    # Создание скрипта запуска (используем LOCAL_IP технически, но юзер его не видел)
+    cat <<EOF > $TUN_RUN_SCRIPT
 #!/bin/bash
 ip link delete $TUN_NAME 2>/dev/null
-ip tunnel add $TUN_NAME mode ipip local $LOCAL_IP remote $REMOTE_IP ttl 255
-ip link set dev $TUN_NAME mtu 1400
-ip addr add 10.200.200.1/30 dev $TUN_NAME
-ip link set dev $TUN_NAME up
-sysctl -w net.ipv4.ip_forward=1
-sysctl -w net.ipv4.conf.all.rp_filter=0
-sysctl -w net.ipv4.conf.default.rp_filter=0
-sysctl -w net.ipv4.conf.$TUN_NAME.rp_filter=0
-ip rule del from 10.200.200.1 table 200 2>/dev/null
-ip route flush table 200 2>/dev/null
-ip route add default via 10.200.200.2 dev $TUN_NAME table 200
-ip rule add from 10.200.200.1 table 200
+ip tunnel add $TUN_NAME mode ipip remote $REMOTE_IP local $LOCAL_IP ttl 255
+ip addr add $MY_TUN_IP/30 dev $TUN_NAME
+ip link set $TUN_NAME up
+ip rule del from $MY_TUN_IP table 200 2>/dev/null
+ip rule add from $MY_TUN_IP table 200
+ip route add default dev $TUN_NAME table 200
 EOF
-    fi
+
     chmod +x $TUN_RUN_SCRIPT
+
+    # Создание системного юнита
     cat <<EOF > $TUN_SERVICE
 [Unit]
-Description=IPIP Tunnel Service
-After=network-online.target
+Description=IPIP Tunnel for Xray
+After=network.target
+
 [Service]
 Type=oneshot
 ExecStart=$TUN_RUN_SCRIPT
 RemainAfterExit=yes
+
 [Install]
 WantedBy=multi-user.target
 EOF
-    run_step "запуск службы туннеля" "systemctl daemon-reload && systemctl enable ipip-tunnel && systemctl restart ipip-tunnel"
-    echo -e "\n${BOLD}${GREEN}  Туннель поднят!${NC}"
+
+    run_step "применение конфигурации" "systemctl daemon-reload && systemctl enable --now ipip-tunnel"
+    
+    echo -e "  ${SKY_BLUE}проверка связи...${NC}"
+    if ping -c 2 -W 3 $REMOTE_TUN_IP > /dev/null; then
+        echo -e "   ${GREEN}${BOLD}туннель успешно поднят и отвечает!${NC}"
+    else
+        echo -e "   ${YELLOW}${BOLD}туннель создан, но удаленный конец ($REMOTE_TUN_IP) молчит.${NC}"
+        echo -e "   ${GRAY}(настройте вторую сторону, используя IP этого сервера: $PUBLIC_IP)${NC}"
+    fi
 }
 
 # --- SUBMENUS ---
