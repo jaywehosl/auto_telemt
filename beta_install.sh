@@ -4,7 +4,7 @@
 # params
 # ==========================================================
 CURRENT_VERSION="1.4.0-IPIP"
-REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
+REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
 BOLD=$(tput bold)
