@@ -413,16 +413,16 @@ submenu_tunnel() {
                wait_user ;;
             4) 
                if [ ! -d "/sys/class/net/$TUN_NAME" ]; then 
-                   echo -e "       ${RED}ошибка: туннель не поднят!${NC}"[cite: 2]
+                   echo -e "       ${RED}ошибка: туннель не поднят!${NC}"
                else
-                   echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"[cite: 2]
-                   echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"[cite: 2]
-                   SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)[cite: 2]
+                   echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
+                   echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
+                   SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)
                    if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
-                       echo -e "       ${RED}ошибка: не удалось провести замер${NC}"[cite: 2]
+                       echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
                    else
-                       SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")[cite: 2]
-                       echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"[cite: 2]
+                       SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
+                       echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                    fi
                fi
                wait_user ;;
