@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.4.5"
+CURRENT_VERSION="1.4.6"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -187,7 +187,8 @@ cleanup_proxy() {
     fi
     
     run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"
+    echo -e "   ${GREEN}${BOLD}Telemt успешно удалён${NC}" # Ровно 3 пробела
+}
 }
 
 # --- IPIP TUNNEL LOGIC ---
@@ -209,7 +210,8 @@ cleanup_tunnel() {
     
     run_step "удаление файлов" "rm -f $TUN_RUN_SCRIPT $TUN_SERVICE"
     run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    туннель успешно удалён${NC}"
+    echo -e "   ${GREEN}${BOLD}туннель успешно удалён${NC}" # Ровно 3 пробела
+}
 }
 
 setup_tunnel() {
@@ -443,7 +445,8 @@ submenu_manager() {
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
         
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
+        echo -ne "       ${ORANGE}выберите действие: ${NC}"
+        read subchoice
         
         case $subchoice in
             1) 
@@ -455,18 +458,21 @@ submenu_manager() {
             2) 
                echo -ne "       ${ORANGE}Удалить Telemt? (y/n): ${NC}"
                read confirm
-               if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+               # Переводим в нижний регистр для надежности
+               confirm=$(echo "$confirm" | tr '[:upper:]' '[:lower:]')
+               if [[ "$confirm" == "y" ]]; then
                    cleanup_proxy
                    wait_user
                fi ;;
             3) 
                echo -ne "       ${ORANGE}Удалить ВСЁ? (y/n): ${NC}"
                read confirm
-               if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+               confirm=$(echo "$confirm" | tr '[:upper:]' '[:lower:]')
+               if [[ "$confirm" == "y" ]]; then
                    cleanup_proxy
                    cleanup_tunnel
                    run_step "удаление менеджера" "rm -f $CLI_NAME"
-                   echo -e "\n       ${GREEN}${BOLD}Очистка завершена. Выход...${NC}"
+                   echo -e "\n   ${GREEN}${BOLD}Очистка завершена. Выход...${NC}"
                    exit 0
                fi ;;
             0) break ;;
