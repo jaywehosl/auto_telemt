@@ -390,13 +390,14 @@ submenu_tunnel() {
                echo -e "       ${SKY_BLUE}тестируем скорость через туннель...${NC}"
                echo -e "       ${ORANGE}(загрузка 500MB, подождите)${NC}"
                
-               # Берем среднюю скорость в байтах/сек
-               SPEED_BPS=$(curl -o /dev/null -s -w "%{speed_download}" --interface $MY_TUN_IP http://cachefly.cachefly.net/500mb.test)
+               # Используем зеркало Tele2, оно стабильнее и без редиректов
+               # Добавляем --max-time, чтобы не виснуть вечно, если что-то пойдет не так
+               SPEED_BPS=$(curl -o /dev/null -s --max-time 30 -w "%{speed_download}" --interface $MY_TUN_IP http://speedtest.tele2.net/500MB.zip)
                
                if [[ -z "$SPEED_BPS" || "$SPEED_BPS" == "0" || "$SPEED_BPS" == "0.000" ]]; then
-                   echo -e "       ${RED}ошибка: не удалось провести замер${NC}"
+                   echo -e "       ${RED}ошибка: не удалось провести замер или файл недоступен${NC}"
                else
-                   # Считаем через awk: (байты * 8 бит) / 1024 / 1024 = Мбит/с
+                   # Считаем через awk, чтобы не было приколов с .35 вместо 0.35
                    SPEED_MBPS=$(awk "BEGIN {printf \"%.2f\", ($SPEED_BPS * 8) / 1048576}")
                    echo -e "       ${GREEN}результат: ~ $SPEED_MBPS Мбит/с${NC}"
                fi
