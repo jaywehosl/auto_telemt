@@ -3,8 +3,8 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.6"
-REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
+CURRENT_VERSION="1.3.3-zapret"
+REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 
 # === color grade ===
 BOLD=$(tput bold)
