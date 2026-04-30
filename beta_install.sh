@@ -31,7 +31,7 @@ L_MAIN_5="обслуживание менеджера"
 L_MAIN_0="выход"
 
 L_PROMPT_BACK="назад"
-L_MSG_WAIT_ENTER=" нажмите[Enter] для продолжения..."
+L_MSG_WAIT_ENTER=" нажмите [Enter] для продолжения..."
 L_ERR_NOT_INSTALLED=" ошибка: сервис еще не установлен!"
 # ==========================================================
 
@@ -77,7 +77,7 @@ check_updates() {
 
 # get user list function
 get_user_list() {
-    if[ -f "$CONF_FILE" ]; then
+    if [ -f "$CONF_FILE" ]; then
         # we take everything after [access.users] and look for с '=', grab first word
         sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
     fi
@@ -91,7 +91,7 @@ show_links() {
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
-    if [ -z "$LINKS" ] ||[ "$LINKS" == "null" ]; then
+    if[ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
         echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"
     else
         for link in $LINKS; do
@@ -157,11 +157,8 @@ tls = true
 port = $P_PORT
 [server.api]
 enabled = true
-listen = \"127.0.0.1:9091\"
-[censorship]
-tls_domain = \"$P_SNI\"
-
-[access.user_max_unique_ips]
+listen = \"127.0.0.1:9091\"[censorship]
+tls_domain = \"$P_SNI\"[access.user_max_unique_ips]
 $P_USER = $P_LIM[access.users]
 $P_USER = \"\$(openssl rand -hex 16)\"
 EOF
@@ -231,7 +228,7 @@ submenu_service() {
         case $subchoice in
             1) install_telemt; wait_user ;;
             2)[ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN} Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            3)[ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW} Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW} Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             0) break ;;
         esac
     done
@@ -288,7 +285,7 @@ submenu_users() {
                 printf " ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
                 read -p "$(echo -e $ORANGE" введите номер пользователя для удаления: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] &&[ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     DEL_NAME="${USERS[$((U_IDX-1))]}"
                     sed -i "/^$DEL_NAME =/d" $CONF_FILE
                     systemctl restart telemt && echo -e "${RED} пользователь удалён: $DEL_NAME${NC}"
@@ -307,7 +304,7 @@ submenu_users() {
                 printf " ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
                 read -p "$(echo -e $ORANGE" введите номер пользователя для смены лимита: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] &&[ "$U_IDX" -le "${#USERS[@]}" ]; then
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE" новый лимит IP: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
