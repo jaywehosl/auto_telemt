@@ -77,7 +77,7 @@ check_updates() {
 
 # get user list function
 get_user_list() {
-    if[ -f "$CONF_FILE" ]; then
+    if [ -f "$CONF_FILE" ]; then
         # we take everything after [access.users] and look for с '=', grab first word
         sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
     fi
@@ -338,7 +338,7 @@ submenu_settings() {
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
         printf "${BOLD}${MAIN_COLOR}║            НАСТРОЙКИ TELEMT            ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if[ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
+        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf " ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"
         printf " ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"
         printf " ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"
@@ -418,7 +418,7 @@ while true; do
     printf "${BOLD}${MAIN_COLOR}║          %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
-    if[ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
+    if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
     else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
     
