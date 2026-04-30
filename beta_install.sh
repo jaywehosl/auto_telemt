@@ -31,7 +31,7 @@ L_MAIN_5="обслуживание менеджера"
 L_MAIN_0="выход"
 
 L_PROMPT_BACK="назад"
-L_MSG_WAIT_ENTER=" нажмите [Enter] для продолжения..."
+L_MSG_WAIT_ENTER=" нажмите[Enter] для продолжения..."
 L_ERR_NOT_INSTALLED=" ошибка: сервис еще не установлен!"
 # ==========================================================
 
@@ -45,7 +45,7 @@ CLI_NAME="/usr/local/bin/telemt"
 ZAPRET_DIR="/opt/zapret"
 ZAPRET_SERVICE="/etc/systemd/system/zapret-tpws.service"
 
-if[ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
+if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
 
 # --- functions ---
 
@@ -91,7 +91,7 @@ show_links() {
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
-    if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
+    if [ -z "$LINKS" ] ||[ "$LINKS" == "null" ]; then
         echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"
     else
         for link in $LINKS; do
@@ -200,9 +200,7 @@ install_zapret() {
     CMD_SRV="cat <<EOF > $ZAPRET_SERVICE
 [Unit]
 Description=Zapret TPWS Daemon
-After=network.target
-
-[Service]
+After=network.target[Service]
 Type=simple
 User=root
 ExecStart=$ZAPRET_DIR/tpws/tpws --port=1080 --socks --disorder --split-pos=host --mss=1300
@@ -232,7 +230,7 @@ submenu_service() {
         read -p "$(echo -e $ORANGE" выберите действие: "$NC)" subchoice
         case $subchoice in
             1) install_telemt; wait_user ;;
-            2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN} Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            2)[ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN} Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             3)[ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW} Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             0) break ;;
         esac
@@ -309,7 +307,7 @@ submenu_users() {
                 printf " ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
                 read -p "$(echo -e $ORANGE" введите номер пользователя для смены лимита: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] &&[ "$U_IDX" -le "${#USERS[@]}" ]; then
                     T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE" новый лимит IP: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
@@ -341,7 +339,7 @@ submenu_settings() {
                else echo -e "${RED}ошибка!${NC}"; fi
                wait_user ;;
             3) read -p "$(echo -e $ORANGE" введите новый SNI: "$NC)" N_SNI
-               if [ -n "$N_SNI" ]; then
+               if[ -n "$N_SNI" ]; then
                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменен, сервис перезапущен${NC}"
                else echo -e "${RED}ошибка!${NC}"; fi
                wait_user ;;
