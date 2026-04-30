@@ -3,7 +3,7 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.3-zapret"
+CURRENT_VERSION="1.3.4-zapret"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
 # === color grade ===
@@ -31,7 +31,7 @@ L_MAIN_5="обслуживание менеджера"
 L_MAIN_0="выход"
 
 L_PROMPT_BACK="назад"
-L_MSG_WAIT_ENTER=" нажмите [Enter] для продолжения..."
+L_MSG_WAIT_ENTER=" нажмите[Enter] для продолжения..."
 L_ERR_NOT_INSTALLED=" ошибка: сервис еще не установлен!"
 # ==========================================================
 
@@ -77,7 +77,7 @@ check_updates() {
 
 # get user list function
 get_user_list() {
-    if [ -f "$CONF_FILE" ]; then
+    if[ -f "$CONF_FILE" ]; then
         # we take everything after [access.users] and look for с '=', grab first word
         sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
     fi
@@ -91,7 +91,7 @@ show_links() {
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
-    if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
+    if [ -z "$LINKS" ] ||[ "$LINKS" == "null" ]; then
         echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"
     else
         for link in $LINKS; do
@@ -149,25 +149,37 @@ install_telemt() {
     CMD_CONF="useradd -d /opt/telemt -m -r -U telemt 2>/dev/null || true; mkdir -p $CONF_DIR; 
     cat <<EOF > $CONF_FILE
 [general]
-use_middle_proxy = false[general.modes]
+use_middle_proxy = false
+
+[general.modes]
 classic = false
 secure = false
 tls = true
+
 [server]
 port = $P_PORT
+
 [server.api]
 enabled = true
-listen = \"127.0.0.1:9091\"[censorship]
-tls_domain = \"$P_SNI\"[access.user_max_unique_ips]
-$P_USER = $P_LIM[access.users]
+listen = \"127.0.0.1:9091\"
+
+[censorship]
+tls_domain = \"$P_SNI\"
+
+[access.user_max_unique_ips]
+$P_USER = $P_LIM
+
+[access.users]
 $P_USER = \"\$(openssl rand -hex 16)\"
 EOF
     chown -R telemt:telemt $CONF_DIR"
     run_step "создание конфига" "$CMD_CONF"
     
-    CMD_SRV="cat <<EOF > $SERVICE_FILE[Unit]
+    CMD_SRV="cat <<EOF > $SERVICE_FILE
+[Unit]
 Description=Telemt Proxy
 After=network-online.target
+
 [Service]
 Type=simple
 User=telemt
@@ -178,7 +190,9 @@ Restart=on-failure
 LimitNOFILE=65536
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
-NoNewPrivileges=true[Install]
+NoNewPrivileges=true
+
+[Install]
 WantedBy=multi-user.target
 EOF"
     run_step "настройка службы" "$CMD_SRV"
@@ -197,7 +211,9 @@ install_zapret() {
     CMD_SRV="cat <<EOF > $ZAPRET_SERVICE
 [Unit]
 Description=Zapret TPWS Daemon
-After=network.target[Service]
+After=network.target
+
+[Service]
 Type=simple
 User=root
 ExecStart=$ZAPRET_DIR/tpws/tpws --port=1080 --socks --disorder --split-pos=host --mss=1300
@@ -304,7 +320,7 @@ submenu_users() {
                 printf " ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
                 read -p "$(echo -e $ORANGE" введите номер пользователя для смены лимита: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                if [[ "$U_IDX" =~ ^[0-9]+$ ]] &&[ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE" новый лимит IP: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
@@ -322,7 +338,7 @@ submenu_settings() {
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
         printf "${BOLD}${MAIN_COLOR}║            НАСТРОЙКИ TELEMT            ║${NC}\n"
         printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
+        if[ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf " ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"
         printf " ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"
         printf " ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"
@@ -359,8 +375,8 @@ submenu_zapret() {
         read -p "$(echo -e $ORANGE" выберите действие: "$NC)" subchoice
         case $subchoice in
             1) install_zapret; wait_user ;;
-            2) [ -f "$ZAPRET_SERVICE" ] && systemctl restart zapret-tpws && echo -e "${GREEN} Zapret перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
-            3)[ -f "$ZAPRET_SERVICE" ] && systemctl stop zapret-tpws && echo -e "${YELLOW} Zapret остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            2)[ -f "$ZAPRET_SERVICE" ] && systemctl restart zapret-tpws && echo -e "${GREEN} Zapret перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
+            3) [ -f "$ZAPRET_SERVICE" ] && systemctl stop zapret-tpws && echo -e "${YELLOW} Zapret остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             4) 
                 read -p "$(echo -e ${RED}" внимание! это действие полностью удалит Zapret! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
                 if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_zapret; wait_user; fi ;;
@@ -402,7 +418,7 @@ while true; do
     printf "${BOLD}${MAIN_COLOR}║          %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
-    if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
+    if[ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
     else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
     
