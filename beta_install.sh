@@ -91,7 +91,7 @@ show_links() {
     IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "")
     IP6=$(curl -6 -s --max-time 2 https://api64.ipify.org || echo "")
     LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target_user\") | .links.tls[]" 2>/dev/null)
-    if[ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
+    if [ -z "$LINKS" ] || [ "$LINKS" == "null" ]; then
         echo -e "${YELLOW}ключи подключения не найдены, проверьте статус сервиса${NC}"
     else
         for link in $LINKS; do
@@ -336,7 +336,7 @@ submenu_settings() {
                else echo -e "${RED}ошибка!${NC}"; fi
                wait_user ;;
             3) read -p "$(echo -e $ORANGE" введите новый SNI: "$NC)" N_SNI
-               if[ -n "$N_SNI" ]; then
+               if [ -n "$N_SNI" ]; then
                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменен, сервис перезапущен${NC}"
                else echo -e "${RED}ошибка!${NC}"; fi
                wait_user ;;
@@ -402,11 +402,11 @@ while true; do
     printf "${BOLD}${MAIN_COLOR}║          %s (v%s)        ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
     
-    if[ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
+    if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
     else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
     
-    if[ ! -f "$ZAPRET_SERVICE" ]; then Z_STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
+    if [ ! -f "$ZAPRET_SERVICE" ]; then Z_STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
     elif systemctl is-active --quiet zapret-tpws; then Z_STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
     else Z_STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
 
