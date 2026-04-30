@@ -3,8 +3,8 @@
 # ==========================================================
 # params
 # ==========================================================
-CURRENT_VERSION="1.3.4"
-REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
+CURRENT_VERSION="1.3.5"
+REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/main/install_telemt.sh"
 ZAPRET_REPO="https://github.com/bol-van/zapret.git"
 
 # === color grade ===
@@ -37,21 +37,20 @@ L_PROMPT_BACK="назад"
 L_MSG_WAIT_ENTER="       нажмите [Enter] для продолжения..."
 L_ERR_NOT_INSTALLED="       ошибка: прокси еще не установлен!"
 L_ERR_ZAPRET_NOT="       ошибка: zapret еще не установлен!"
-# ==========================================================
 
-# paths
+# === paths ===
 BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
 CONF_FILE="$CONF_DIR/telemt.toml"
 SERVICE_FILE="/etc/systemd/system/telemt.service"
 CLI_NAME="/usr/local/bin/telemt"
 
-ZAPRET_DIR="/opt/zapret"
-ZAPRET_SERVICE_FILE="/etc/systemd/system/tpws.service"
+ZAPRET_DIR="$HOME/zapret"
+ZAPRET_SERVICE_FILE="/etc/systemd/system/zapret.service"
 
 if [ "$EUID" -ne 0 ]; then echo -e "${RED}ошибка, запустите скрипт с root правами!${NC}"; exit 1; fi
 
-# --- functions ---
+# --- core functions ---
 
 wait_user() {
     printf "\n${ORANGE}${BOLD}$L_MSG_WAIT_ENTER${NC}"
@@ -79,7 +78,6 @@ check_updates() {
     fi
 }
 
-# get user list function
 get_user_list() {
     if [ -f "$CONF_FILE" ]; then
         sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u
@@ -105,35 +103,20 @@ show_links() {
     fi
 }
 
-cleanup_proxy() {
-    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"
-    run_step "остановка службы" "systemctl stop telemt"
-    run_step "отключение автозагрузки" "systemctl disable telemt"
-    run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
-    run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"
-    run_step "удаление системных файлов" "rm -rf /opt/telemt"
-    run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
-    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
-    run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"
-}
+# --- telemt logic ---
 
 install_telemt() {
     echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Telemt${NC}"
-    read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt ${MAIN_COLOR}(по умолчанию сервис работает на 443 порту): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
-    read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(возможно использовать любой валидный SNI): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
+    read -p "$(echo -e $SKY_BLUE"  укажите порт для Telemt ${MAIN_COLOR}(по умолчанию 443): "$NC)" P_PORT; P_PORT=${P_PORT:-443}
+    read -p "$(echo -e $SKY_BLUE"  укажите SNI для TLS ${MAIN_COLOR}(по умолчанию google.com): "$NC)" P_SNI; P_SNI=${P_SNI:-google.com}
     
     while true; do
         read -p "$(echo -e $SKY_BLUE"  введите имя пользователя: "$NC)" P_USER; P_USER=${P_USER:-admin}
-        if [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]]; then
-            break
-        else
-            echo -e "      ${RED}ошибка: имя должно содержать только латинские буквы и цифры!${NC}"
-        fi
+        [[ "$P_USER" =~ ^[a-zA-Z0-9]+$ ]] && break || echo -e "      ${RED}только латиница и цифры!${NC}"
     done
 
-    read -p "$(echo -e $SKY_BLUE"  задайте лимит IP адресов ${MAIN_COLOR}(если лимит не нужен, введите 0): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
-    echo -e ""
+    read -p "$(echo -e $SKY_BLUE"  лимит IP адресов (0 - нет): "$NC)" P_LIM; P_LIM=${P_LIM:-0}
+    
     run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
     ARCH=$(uname -m); LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
     URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
@@ -184,27 +167,40 @@ WantedBy=multi-user.target
 EOF"
     run_step "настройка службы" "$CMD_SRV"
     run_step "запуск Telemt" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
-    echo -e "\n${BOLD}${GREEN}  установка завершена успешно!${NC}"
-    show_links "$P_USER"
+    wait_user
 }
 
-# --- zapret functions ---
+cleanup_proxy() {
+    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Telemt...${NC}"
+    run_step "остановка службы" "systemctl stop telemt"
+    run_step "отключение автозагрузки" "systemctl disable telemt"
+    run_step "удаление бинарных файлов" "rm -f $BIN_PATH"
+    run_step "удаление файлов конфигураций" "rm -rf $CONF_DIR"
+    run_step "удаление системных файлов" "rm -rf /opt/telemt"
+    run_step "удаление системного юнита" "rm -f $SERVICE_FILE"
+    run_step "удаление пользователей" "userdel telemt 2>/dev/null || true"
+    run_step "перезагрузка демонов" "systemctl daemon-reload"
+    echo -e "${GREEN}${BOLD}    Telemt успешно удалён${NC}"
+}
+
+# --- zapret logic ---
 
 install_zapret() {
     echo -e "\n${BOLD}${MAIN_COLOR}  настройка и установка Zapret${NC}"
+    run_step "установка зависимостей" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y build-essential libnetfilter-queue-dev libmnl-dev libcap-dev zlib1g-dev git -qq"
     
-    run_step "установка пакетов" "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y build-essential libnetfilter-queue-dev libmnl-dev libcap-dev zlib1g-dev git -qq"
-    
-    if [ -d "$ZAPRET_DIR" ]; then
-        run_step "очистка старых файлов" "rm -rf $ZAPRET_DIR"
+    if [ -d "$ZAPRET_DIR" ]; then 
+        run_step "обновление исходников" "cd $ZAPRET_DIR && git pull"
+    else 
+        run_step "клонирование репо" "git clone --depth=1 $ZAPRET_REPO $ZAPRET_DIR"
     fi
-
-    run_step "загрузка исходников" "git clone --depth=1 $ZAPRET_REPO $ZAPRET_DIR"
+    
     run_step "сборка (make)" "cd $ZAPRET_DIR && make"
-
+    
+    # Каноничный юнит zapret.service
     CMD_SRV="cat <<EOF > $ZAPRET_SERVICE_FILE
 [Unit]
-Description=tpws zapret proxy
+Description=zapret tool
 After=network.target
 
 [Service]
@@ -218,34 +214,27 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF"
     run_step "настройка службы" "$CMD_SRV"
-    run_step "запуск сервиса" "systemctl daemon-reload && systemctl enable tpws && systemctl restart tpws"
-
-    echo -e "\n${BOLD}${GREEN}  Zapret успешно установлен! (порт 1080)${NC}"
+    run_step "запуск сервиса" "systemctl daemon-reload && systemctl enable zapret && systemctl restart zapret"
 }
 
 cleanup_zapret() {
-    echo -e "\n${BOLD}${SKY_BLUE}    удаляем компоненты Zapret...${NC}"
-    run_step "остановка службы" "systemctl stop tpws 2>/dev/null"
-    run_step "отключение автозагрузки" "systemctl disable tpws 2>/dev/null"
-    run_step "удаление файлов" "rm -rf $ZAPRET_DIR"
-    run_step "удаление системного юнита" "rm -f $ZAPRET_SERVICE_FILE"
-    run_step "перезагрузка демонов" "systemctl daemon-reload"
-    echo -e "${GREEN}${BOLD}    Zapret успешно удалён${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}    удаление Zapret...${NC}"
+    run_step "остановка службы" "systemctl stop zapret 2>/dev/null"
+    run_step "отключение автозагрузки" "systemctl disable zapret 2>/dev/null"
+    run_step "удаление папки" "rm -rf $ZAPRET_DIR"
+    run_step "удаление юнита" "rm -f $ZAPRET_SERVICE_FILE"
+    run_step "перезагрузка систем" "systemctl daemon-reload"
 }
 
 show_zapret_rules() {
-    echo -e "\n${BOLD}${SKY_BLUE}       правила JSON для добавления в конфиг Xray:${NC}"
-    echo -e "${BOLD}${MAIN_COLOR}       1. в секцию 'outbounds' (в начало):${NC}"
+    echo -e "\n${BOLD}${SKY_BLUE}       правила JSON для Xray:${NC}"
+    echo -e "${BOLD}${MAIN_COLOR}       1. в outbounds:${NC}"
     echo '       {"tag": "zapret-socks", "protocol": "socks", "settings": {"servers": [{"address": "127.0.0.1", "port": 1080}]}},'
-    
-    echo -e "\n${BOLD}${MAIN_COLOR}       2. в секцию 'routing' -> 'rules' (в начало):${NC}"
-    echo '       {"type": "field", "domain": ["geosite:youtube", "googlevideo.com", "ytimg.com", "ggpht.com", "youtubei.googleapis.com"], "outboundTag": "zapret-socks"},'
-    
-    echo -e "\n${BOLD}${MAIN_COLOR}       3. в секцию 'routing' -> 'rules' (catch-all, в самый конец):${NC}"
-    echo '       {"type": "field", "port": "0-65535", "outboundTag": "proxy"}'
+    echo -e "\n${BOLD}${MAIN_COLOR}       2. в routing rules (начало):${NC}"
+    echo '       {"type": "field", "domain": ["geosite:youtube", "googlevideo.com", "ytimg.com"], "outboundTag": "zapret-socks"},'
 }
 
-# --- submenu logic ---
+# --- submenus ---
 
 submenu_service() {
     while true; do
@@ -257,9 +246,9 @@ submenu_service() {
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}перезапустить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}остановить Telemt${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
-        case $subchoice in
-            1) install_telemt; wait_user ;;
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" sc
+        case $sc in
+            1) install_telemt ;;
             2) [ -f "$SERVICE_FILE" ] && systemctl restart telemt && echo -e "${GREEN}  Telemt перезапущен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             3) [ -f "$SERVICE_FILE" ] && systemctl stop telemt && echo -e "${YELLOW}  Telemt остановлен${NC}" || echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user ;;
             0) break ;;
@@ -279,71 +268,52 @@ submenu_users() {
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}удаление пользователей${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}настроить лимит IP${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
-        case $subchoice in
-            1) while true; do
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" sc
+        case $sc in
+            1) 
+               while true; do
                 mapfile -t USERS < <(get_user_list)
-                clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}║          СПИСОК  ПОЛЬЗОВАТЕЛЕЙ         ║${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
+                clear
+                echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
                 for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
                 printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
-                read -p "$(echo -e $ORANGE"       введите номер пользователя: "$NC)" U_IDX
+                read -p "$(echo -e $ORANGE"       введите номер: "$NC)" U_IDX
                 [[ "$U_IDX" == "0" ]] && break
                 if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     show_links "${USERS[$((U_IDX-1))]}"; wait_user
                 fi
-            done ;;
-            2) while true; do
-                read -p "$(echo -e $ORANGE"       введите имя пользователя: "$NC)" UNAME
-                if [[ "$UNAME" =~ ^[a-zA-Z0-9]+$ ]]; then
-                    break
-                else
-                    echo -e "       ${RED}ошибка! имя пользователя должно содержать только латинские буквы и цифры!${NC}"
-                fi
-               done
-                if [ -n "$UNAME" ]; then
-                    read -p "$(echo -e $ORANGE"       задайте лимит IP адресов (если лимит не нужен, введите 0): "$NC)" ULIM; ULIM=${ULIM:-0}
+               done ;;
+            2) 
+               read -p "$(echo -e $ORANGE"       имя нового пользователя: "$NC)" UNAME
+               if [[ "$UNAME" =~ ^[a-zA-Z0-9]+$ ]]; then
+                    read -p "$(echo -e $ORANGE"       лимит IP (0 - нет): "$NC)" ULIM; ULIM=${ULIM:-0}
                     U_SEC=$(openssl rand -hex 16)
                     sed -i "/\[access.user_max_unique_ips\]/a $UNAME = $ULIM" $CONF_FILE
                     echo "$UNAME = \"$U_SEC\"" >> $CONF_FILE
                     systemctl restart telemt && echo -e "${GREEN}       пользователь добавлен${NC}"; wait_user
-                fi ;;
-            3) while true; do
-                mapfile -t USERS < <(get_user_list)
-                clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}║         УДАЛЕНИЕ   ПОЛЬЗОВАТЕЛЯ        ║${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
-                for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
-                printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}назад${NC}\n"
-                read -p "$(echo -e $ORANGE"       введите номер пользователя для удаления: "$NC)" U_IDX
-                [[ "$U_IDX" == "0" ]] && break
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+               fi ;;
+            3) 
+               mapfile -t USERS < <(get_user_list)
+               clear
+               for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+               read -p "$(echo -e $ORANGE"       номер для удаления: "$NC)" U_IDX
+               if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
                     DEL_NAME="${USERS[$((U_IDX-1))]}"
                     sed -i "/^$DEL_NAME =/d" $CONF_FILE
-                    systemctl restart telemt && echo -e "${RED}       пользователь удалён: $DEL_NAME${NC}"
-                    wait_user
-                fi
-            done ;;
-            4) while true; do
-                mapfile -t USERS < <(get_user_list)
-                clear; echo -e "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}║           ЛИМИТЫ  IP  АДРЕСОВ          ║${NC}"
-                       echo -e "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}"
-                for i in "${!USERS[@]}"; do
-                    CUR_LIM=$(grep "^${USERS[$i]} =" $CONF_FILE | grep -v "\"" | awk '{print $3}')
-                    printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC} (текущий лимит: ${YELLOW}%s${NC})\n" "$((i+1))" "${USERS[$i]}" "${CUR_LIM:-0}"
-                done
-                printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}Назад${NC}\n"
-                read -p "$(echo -e $ORANGE"       введите номер пользователя для смены лимита: "$NC)" U_IDX
-                [[ "$U_IDX" == "0" ]] && break
-                if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
-                    T_USER="${USERS[$((U_IDX-1))]}"; read -p "$(echo -e $ORANGE"       новый лимит IP: "$NC)" N_LIM
+                    systemctl restart telemt && echo -e "${RED}       удалён: $DEL_NAME${NC}"; wait_user
+               fi ;;
+            4) 
+               mapfile -t USERS < <(get_user_list)
+               clear
+               for i in "${!USERS[@]}"; do printf "  ${BOLD}${MAIN_COLOR}%2d -${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+               read -p "$(echo -e $ORANGE"       номер пользователя: "$NC)" U_IDX
+               if [[ "$U_IDX" =~ ^[0-9]+$ ]] && [ "$U_IDX" -gt 0 ] && [ "$U_IDX" -le "${#USERS[@]}" ]; then
+                    T_USER="${USERS[$((U_IDX-1))]}"
+                    read -p "$(echo -e $ORANGE"       новый лимит: "$NC)" N_LIM
                     sed -i "/^$T_USER = [0-9]/d" $CONF_FILE
                     sed -i "/\[access.user_max_unique_ips\]/a $T_USER = ${N_LIM:-0}" $CONF_FILE
-                    systemctl restart telemt && echo -e "${GREEN}       лимит IP обновлён${NC}"; wait_user
-                fi
-            done ;;
+                    systemctl restart telemt && echo -e "${GREEN}       лимит обновлён${NC}"; wait_user
+               fi ;;
             0) break ;;
         esac
     done
@@ -353,26 +323,17 @@ submenu_settings() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║           НАСТРОЙКИ   TELEMT           ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "${RED}$L_ERR_NOT_INSTALLED${NC}"; wait_user; break; fi
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}системный лог${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}изменить порт${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}изменить SNI домен${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
-        case $subchoice in
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" sc
+        case $sc in
             1) systemctl status telemt; wait_user ;;
-            2) read -p "$(echo -e $ORANGE"       введите новый порт: "$NC)" N_PORT
-                if [[ $N_PORT =~ ^[0-9]+$ ]]; then
-                    sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}порт изменён, сервис перезапущен${NC}"
-                else echo -e "${RED}ошибка!${NC}"; fi
-                wait_user ;;
-            3) read -p "$(echo -e $ORANGE"       введите новый SNI: "$NC)" N_SNI
-                if [ -n "$N_SNI" ]; then
-                    sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt && echo -e "${GREEN}SNI изменен, сервис перезапущен${NC}"
-                else echo -e "${RED}ошибка!${NC}"; fi
-                wait_user ;;
+            2) read -p "$(echo -e $ORANGE"       новый порт: "$NC)" N_PORT
+               sed -i "s/^port = .*/port = $N_PORT/" $CONF_FILE && systemctl restart telemt; wait_user ;;
+            3) read -p "$(echo -e $ORANGE"       новый SNI: "$NC)" N_SNI
+               sed -i "s/^tls_domain = .*/tls_domain = \"$N_SNI\"/" $CONF_FILE && systemctl restart telemt; wait_user ;;
             0) break ;;
         esac
     done
@@ -383,21 +344,15 @@ submenu_manager() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║         ОБСЛУЖИВАНИЕ МЕНЕДЖЕРА         ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}обновить менеджер${UPDATE_INFO}${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить сервис Telemt${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить Telemt${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}полная очистка (system clean)${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
-        case $subchoice in
-            1) echo -e "${SKY_BLUE}       обновление...${NC}"; if curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME"; then
-               sync; chmod +x "$CLI_NAME"; echo -e "${GREEN}Готово!${NC}"; sleep 1; exec "$CLI_NAME";
-               else echo -e "${RED}ошибка${NC}"; wait_user; fi ;;
-            2) read -p "$(echo -e ${RED}"       внимание! это действие удалит сервис Telemt, его файлы конфигурации и всех созданных пользователей! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy && wait_user; fi ;;
-            3) read -p "$(echo -e ${RED}"       внимание! это действие полностью удалит менеджер СТАЛИН-3000! продолжить? ${MAIN_COLOR}(y/n):"$NC)" confirm
-               if [[ "$confirm" =~ ^[Yy]([Ee][Ss])?$ ]]; then cleanup_proxy; cleanup_zapret; rm -f "$CLI_NAME"; echo -e "${RED}${NC}"; exit 0; fi ;;
+        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" sc
+        case $sc in
+            1) curl -sSL -f "${REPO_URL}?v=$(date +%s)" -o "$CLI_NAME" && chmod +x "$CLI_NAME" && exec "$CLI_NAME" ;;
+            2) cleanup_proxy && wait_user ;;
+            3) cleanup_proxy; cleanup_zapret; rm -f "$CLI_NAME"; exit 0 ;;
             0) break ;;
         esac
     done
@@ -407,26 +362,21 @@ submenu_zapret() {
     while true; do
         clear
         printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}║           УПРАВЛЕНИЕ ZAPRET            ║${NC}\n"
-        printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-        
-        if [ ! -f "$ZAPRET_SERVICE_FILE" ]; then STATUS_ZAPRET="${BOLD}${RED}$L_STATUS_NONE${NC}"
-        elif systemctl is-active --quiet tpws; then STATUS_ZAPRET="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
-        else STATUS_ZAPRET="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
-        
-        printf "  %s %b\n" "      $L_ZAPRET_LABEL" "$STATUS_ZAPRET"
-        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить/переустановить Zapret${NC}\n"
+        printf "║           УПРАВЛЕНИЕ ZAPRET            ║\n"
+        if [ ! -f "$ZAPRET_SERVICE_FILE" ]; then SZ="${BOLD}${RED}$L_STATUS_NONE${NC}"
+        elif systemctl is-active --quiet zapret; then SZ="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
+        else SZ="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
+        printf "  статус: %b\n" "$SZ"
+        printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}установить/обновить Zapret${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}удалить Zapret${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}проверить статус службы${NC}\n"
-        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}показать стандартные правила JSON${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}статус службы${NC}\n"
+        printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}JSON правила${NC}\n"
         printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_PROMPT_BACK${NC}\n"
-        
-        read -p "$(echo -e $ORANGE"       выберите действие: "$NC)" subchoice
-        case $subchoice in
+        read -p "$(echo -e $ORANGE"       выберите: "$NC)" sc
+        case $sc in
             1) install_zapret; wait_user ;;
-            2) read -p "$(echo -e ${RED}"       удалить Zapret? (y/n):"$NC)" confirm
-               if [[ "$confirm" =~ ^[Yy]$ ]]; then cleanup_zapret; wait_user; fi ;;
-            3) if [ -f "$ZAPRET_SERVICE_FILE" ]; then systemctl status tpws; else echo -e "${RED}$L_ERR_ZAPRET_NOT${NC}"; fi; wait_user ;;
+            2) cleanup_zapret; wait_user ;;
+            3) [ -f "$ZAPRET_SERVICE_FILE" ] && systemctl status zapret || echo -e "${RED}$L_ERR_ZAPRET_NOT${NC}"; wait_user ;;
             4) show_zapret_rules; wait_user ;;
             0) break ;;
         esac
@@ -438,32 +388,34 @@ while true; do
     check_updates
     clear
     printf "${BOLD}${MAIN_COLOR}╔════════════════════════════════════════╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║           %s (v%s)         ║${NC}\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
-    printf "${BOLD}${MAIN_COLOR}╚════════════════════════════════════════╝${NC}\n"
-    if [ ! -f "$SERVICE_FILE" ]; then STATUS="${BOLD}${RED}$L_STATUS_NONE${NC}"
-    elif systemctl is-active --quiet telemt; then STATUS="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
-    else STATUS="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
-    printf "  %s %b\n" "      $L_STATUS_LABEL" "$STATUS"
+    printf "║           %s (v%s)         ║\n" "$L_MENU_HEADER" "$CURRENT_VERSION"
     
-    if [ ! -f "$ZAPRET_SERVICE_FILE" ]; then STATUS_ZAPRET="${BOLD}${RED}$L_STATUS_NONE${NC}"
-    elif systemctl is-active --quiet tpws; then STATUS_ZAPRET="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
-    else STATUS_ZAPRET="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
-    printf "  %s %b\n" "      $L_ZAPRET_LABEL" "$STATUS_ZAPRET"
+    # Telemt Status
+    if [ ! -f "$SERVICE_FILE" ]; then ST_T="${BOLD}${RED}$L_STATUS_NONE${NC}"
+    elif systemctl is-active --quiet telemt; then ST_T="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
+    else ST_T="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
     
+    # Zapret Status
+    if [ ! -f "$ZAPRET_SERVICE_FILE" ]; then ST_Z="${BOLD}${RED}$L_STATUS_NONE${NC}"
+    elif systemctl is-active --quiet zapret; then ST_Z="${BOLD}${GREEN}$L_STATUS_RUN${NC}"
+    else ST_Z="${BOLD}${YELLOW}$L_STATUS_STOP${NC}"; fi
+    
+    printf "  Telemt: %b | Zapret: %b\n" "$ST_T" "$ST_Z"
     printf "  ${BOLD}${MAIN_COLOR} 1 -${NC} ${BOLD}$L_MAIN_1${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 2 -${NC} ${BOLD}$L_MAIN_2${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 3 -${NC} ${BOLD}$L_MAIN_3${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 4 -${NC} ${BOLD}%s%b${NC}\n" "$L_MAIN_4" "$UPDATE_INFO"
     printf "  ${BOLD}${MAIN_COLOR} 5 -${NC} ${BOLD}$L_MAIN_5${NC}\n"
     printf "  ${BOLD}${MAIN_COLOR} 0 -${NC} ${BOLD}$L_MAIN_0${NC}\n"
-    read -p "$(echo -e $ORANGE"       выберите раздел: "$NC)" mainchoice
-    case $mainchoice in
+    
+    read -p "$(echo -e $ORANGE"       раздел: "$NC)" choice
+    case "$choice" in
         1) submenu_service ;;
         2) submenu_users ;;
         3) submenu_settings ;;
         4) submenu_manager ;;
         5) submenu_zapret ;;
         0) exit 0 ;;
-        *) sleep 0.5 ;;
+        *) sleep 0.3 ;;
     esac
 done
