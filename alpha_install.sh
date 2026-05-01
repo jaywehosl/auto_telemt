@@ -9,7 +9,7 @@
 # 1. константы и окружение
 # ------------------------------------------------------------------------------
 CURRENT_VERSION="3.3.0"
-REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
+REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/alpha_install.sh"
 V_TMP="/tmp/telemt_v_check"
 
 L_IND="  " # стандарт отступа
