@@ -3,13 +3,13 @@
 # ==============================================================================
 # сценарий автоматизации Telemt и Zapret
 # соблюден стандарт отступов evs и цветовая дифференциация по категориям
-# версия: 3.0.0
+# версия: 3.1.0
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. константы и окружение
 # ------------------------------------------------------------------------------
-CURRENT_VERSION="3.0.0"
+CURRENT_VERSION="3.1.0"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/alpha_install.sh"
 V_TMP="/tmp/telemt_v_check"
 
@@ -203,7 +203,7 @@ EOF
             3) printf "\n"; log_step "Остановка Telemt" "systemctl stop telemt"; sleep 1 ;;
             4) printf "\n"; log_step "Перезапуск Telemt" "systemctl restart telemt"; sleep 1 ;;
             5) menu_telemt_users ;;
-            6) printf "\n"; journalctl -u telemt -n 50 --no-pager; printf "\n"; prompt_user "Нажмите [Enter] для возврата" wait ;;
+            6) printf "\n"; if [ ! -f "$T_SERVICE" ]; then echo -e "${L_IND}${BOLD}${C_RED}!! Ошибка: сервис Telemt не установлен${NC}"; else journalctl -u telemt -n 50 --no-pager; fi; printf "\n"; prompt_user "Нажмите [Enter] для возврата" wait ;;
             0) check_updates_background; break ;;
         esac
     done
@@ -270,7 +270,9 @@ menu_zapret() {
         echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}Установить / обновить Zapret${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}Запустить службу${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}Остановить службу${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}Удалить Zapret из системы${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}Сменить локальный порт${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}5 - ${NC}${BOLD}${C_MENU}Просмотр логов${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}6 - ${NC}${BOLD}${C_MENU}Удалить Zapret из системы${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Назад${NC}"
         printf "\n"; prompt_user "Действие" act
         case "$act" in
@@ -295,7 +297,16 @@ EOF
                 printf "\n"; prompt_user "Установка завершена, нажмите [Enter]" wait ;;
             2) printf "\n"; log_step "Запуск Zapret" "systemctl start zapret-tpws"; sleep 1 ;;
             3) printf "\n"; log_step "Остановка Zapret" "systemctl stop zapret-tpws"; sleep 1 ;;
-            4) printf "\n"; prompt_user "Полностью удалить Zapret? (y/n)" cf
+            4) printf "\n"; if [ ! -f "$Z_SERVICE" ]; then echo -e "${L_IND}${BOLD}${C_RED}!! Ошибка: сервис Zapret не установлен${NC}"; else
+                    prompt_user "Укажите новый порт" nport
+                    if [[ "$nport" =~ ^[0-9]+$ ]]; then
+                        sed -i "s/--port=[0-9]*/--port=$nport/" "$Z_SERVICE"
+                        log_step "Применение нового порта" "systemctl daemon-reload && systemctl restart zapret-tpws"
+                        sleep 1
+                    fi
+                fi ;;
+            5) printf "\n"; if [ ! -f "$Z_SERVICE" ]; then echo -e "${L_IND}${BOLD}${C_RED}!! Ошибка: сервис Zapret не установлен${NC}"; else journalctl -u zapret-tpws -n 50 --no-pager; fi; printf "\n"; prompt_user "Нажмите [Enter] для возврата" wait ;;
+            6) printf "\n"; prompt_user "Полностью удалить Zapret? (y/n)" cf
                if [[ "$cf" =~ ^[Yy]$ ]]; then
                     printf "\n"; clear_zapret; sleep 1; fi ;;
             0) check_updates_background; break ;;
