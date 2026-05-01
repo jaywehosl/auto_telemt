@@ -39,7 +39,7 @@ Z_SERVICE="/etc/systemd/system/zapret-tpws.service"
 M_MAIN_1="управление сервисом Telemt"
 M_MAIN_2="управление пользователями Telemt"
 M_MAIN_3="настройки Telemt"
-M_MAIN_4="управление Zapret (TPWS)"
+M_MAIN_4="управление Zapret"
 M_MAIN_5="обслуживание менеджера"
 M_MAIN_0="выход"
 
