@@ -176,7 +176,7 @@ menu_service() {
         echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_ORANGE}перезапустить сервис${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_ORANGE}остановить сервис${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_ORANGE}назад${NC}"
-        printf "\n"; prompt_user "действие" act
+        printf "\n"; prompt_user "выберите действие" act
         case "$act" in
             1) do_install_telemt; printf "\n"; prompt_user "нажмите [Enter] для возврата" wait; break ;;
             2) printf "\n"; log_step "перезапуск" "systemctl restart telemt"; sleep 1 ;;
