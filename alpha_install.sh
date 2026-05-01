@@ -3,13 +3,13 @@
 # ==============================================================================
 # сценарий автоматизации Telemt и Zapret
 # соблюден стандарт отступов evs и цветовая дифференциация по категориям
-# версия: 2.0.0 (prompt coloring + structure refinement)
+# версия: 2.0.0
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. константы и окружение
 # ------------------------------------------------------------------------------
-CURRENT_VERSION="1.9.7"
+CURRENT_VERSION="2.0.0"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/alpha_install.sh"
 V_TMP="/tmp/telemt_v_check" 
 
@@ -39,7 +39,7 @@ Z_SERVICE="/etc/systemd/system/zapret-tpws.service"
 M_MAIN_1="управление сервисом Telemt"
 M_MAIN_2="управление пользователями Telemt"
 M_MAIN_3="настройки Telemt"
-M_MAIN_4="управление Zapret (TPWS)"
+M_MAIN_4="управление Zapret"
 M_MAIN_5="обслуживание менеджера"
 M_MAIN_0="выход"
 
@@ -310,14 +310,14 @@ menu_maintenance() {
         else item_1="переустановить текущую версию v$CURRENT_VERSION"; fi
         echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_ORANGE}$item_1${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_ORANGE}удалить только Telemt${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_ORANGE}полное удаление системы${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_ORANGE}полное удаление сервисов${NC}"
         echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_ORANGE}назад${NC}"
         printf "\n"; prompt_user "выберите действие" act
         case "$act" in
             1) printf "\n"; log_step "скачивание обновления" "curl -sSL -f ${REPO_URL}?v=$(date +%s) -o $CLI_PATH && chmod +x $CLI_PATH"; sleep 1; exec "$CLI_PATH" ;;
             2) printf "\n"; prompt_user "удалить Telemt из системы? (y/n)" cf
                [[ "$cf" =~ ^[Yy]$ ]] && printf "\n" && clear_telemt && sleep 1 ;;
-            3) printf "\n"; prompt_user "УНИЧТОЖИТЬ ВСЕ СЕРВИСЫ? (y/n)" cf
+            3) printf "\n"; prompt_user "полностью удалить все сервисы? (y/n)" cf
                if [[ "$cf" =~ ^[Yy]$ ]]; then printf "\n"
                     systemctl stop telemt zapret-tpws 2>/dev/null
                     systemctl disable telemt zapret-tpws 2>/dev/null
