@@ -2,27 +2,28 @@
 
 # ==============================================================================
 # сценарий автоматизации Telemt и Zapret
-# версия: 3.4.0 (Фикс верстки + IPv6 Оптимизация)
+# соблюден стандарт отступов evs и цветовая дифференциация по категориям
+# версия: 3.6.0 (Alpha-structure + Beta-styling)
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # 1. константы и окружение
 # ------------------------------------------------------------------------------
-CURRENT_VERSION="3.4.0"
-REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
-V_TMP="/tmp/telemt_v_check"
+CURRENT_VERSION="3.6.0"
+REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/alpha_install.sh"
+V_TMP="/tmp/telemt_v_check" 
 
-L_IND="  " # стандарт отступа
+L_IND="  " # стандарт отступа (2 пробела)
 
-# цветовые схемы ANSI
+# цветовые схемы ANSI (весь текст bold по умолчанию)
 NC='\033[0m'
 BOLD='\033[1m'
-C_FRAME='\033[1;38;5;148m'   # салатовый
-C_MENU='\033[1;38;5;214m'    # оранжевый
-C_SKY='\033[1;38;5;81m'      # голубой
-C_GREEN='\033[1;32m'         # зеленый
-C_RED='\033[1;31m'           # красный
-C_YELLOW='\033[1;33m'        # желтый
+C_FRAME='\033[1;38;5;148m'   # салатовый (шапка)
+C_MENU='\033[1;38;5;214m'    # оранжевый (пункты, промпты)
+C_SKY='\033[1;38;5;81m'      # голубой (индексы, процессы)
+C_GREEN='\033[1;32m'         # зеленый (работает, да)
+C_RED='\033[1;31m'           # красный (ошибка, нет)
+C_YELLOW='\033[1;33m'        # желтый (остановлен)
 
 # системные пути
 T_BIN="/bin/telemt"
@@ -33,6 +34,15 @@ CLI_PATH="/usr/local/bin/telemt"
 
 Z_DIR="/opt/zapret"
 Z_SERVICE="/etc/systemd/system/zapret-tpws.service"
+
+# локализация разделов (строго по стилю beta, структура alpha)
+M_MAIN_1="менеджер Telemt"
+M_MAIN_2="менеджер Zapret"
+M_MAIN_3="менеджер скрипта"
+M_MAIN_0="выход"
+
+# очистка временных данных проверки обновлений
+rm -f "$V_TMP"
 
 # проверка root-прав
 if [ "$EUID" -ne 0 ]; then
@@ -65,30 +75,26 @@ refresh_update_marker() {
 }
 
 clear_telemt() {
-    [ -f "$T_SERVICE" ] && log_step "Остановка сервиса Telemt" "systemctl stop telemt"
-    [ -f "$T_SERVICE" ] && log_step "Деактивация автозагрузки" "systemctl disable telemt"
-    log_step "Удаление файлов Telemt" "rm -rf $T_CONF_DIR $T_BIN $T_SERVICE"
+    [ -f "$T_SERVICE" ] && log_step "остановка сервиса" "systemctl stop telemt"
+    [ -f "$T_SERVICE" ] && log_step "деактивация автозагрузки" "systemctl disable telemt"
+    log_step "удаление конфигурационных файлов" "rm -rf $T_CONF_DIR $T_BIN $T_SERVICE"
     systemctl daemon-reload
 }
 
 clear_zapret() {
-    [ -f "$Z_SERVICE" ] && log_step "Остановка демона Zapret" "systemctl stop zapret-tpws"
-    [ -f "$Z_SERVICE" ] && log_step "Деактивация автозагрузки" "systemctl disable zapret-tpws"
-    log_step "Удаление файлов Zapret" "rm -rf $Z_DIR $Z_SERVICE"
+    [ -f "$Z_SERVICE" ] && log_step "остановка демона" "systemctl stop zapret-tpws"
+    [ -f "$Z_SERVICE" ] && log_step "удаление юнита и папок" "systemctl disable zapret-tpws && rm -rf $Z_DIR $Z_SERVICE"
     systemctl daemon-reload
 }
 
 # ------------------------------------------------------------------------------
-# 3. методы визуализации (UI)
+# 3. методы визуализации (frontend)
 # ------------------------------------------------------------------------------
 
 draw_header() {
     local text="$1"; local w=44
-    # Корректный подсчет символов кириллицы для центрирования
     local n_chars=$(echo -n "$text" | wc -m)
-    local p=$(( (w - n_chars) / 2 ))
-    local e=$(( (w - n_chars) % 2 ))
-    
+    local p=$(( (w - n_chars) / 2 )); local e=$(( (w - n_chars) % 2 ))
     printf "${BOLD}${C_FRAME}╔"
     for ((i=0; i<w; i++)); do printf "═"; done
     printf "╗${NC}\n"
@@ -133,31 +139,32 @@ prompt_user() {
 # 4. подменю разделов
 # ------------------------------------------------------------------------------
 
+# менеджер telemt (интегрированная alpha-структура)
 menu_telemt() {
     while true; do
         printf "\033[H\033[J"
         draw_header "МЕНЕДЖЕР TELEMT"; echo ""; print_status; echo ""
-        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}Установить / переустановить (IPv6 Оптимизация)${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}Управление пользователями${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}Запустить сервис${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}Остановить сервис${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}5 - ${NC}${BOLD}${C_MENU}Перезапустить сервис${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}6 - ${NC}${BOLD}${C_MENU}Просмотр логов${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Назад${NC}"
-        printf "\n"; prompt_user "Выберите действие" act
+        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}установить / переустановить (IPv6 Оптимизация)${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}запустить сервис${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}остановить сервис${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}перезапустить сервис${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}5 - ${NC}${BOLD}${C_MENU}управление пользователями${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}6 - ${NC}${BOLD}${C_MENU}просмотр логов${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}назад${NC}"
+        printf "\n"; prompt_user "выберите действие" act
         case "$act" in
-            1)  printf "\n"; prompt_user "Порт (443)" p_port; p_port=${p_port:-443}
-                prompt_user "SNI домен (google.com)" p_sni; p_sni=${p_sni:-google.com}
-                prompt_user "Имя администратора (admin)" p_user; p_user=${p_user:-admin}
-                printf "\n"; log_step "Обновление кеша пакетов" "apt-get update -qq"
-                log_step "Установка утилит" "apt-get install -y curl jq tar openssl net-tools wget -qq"
+            1)  printf "\n"; prompt_user "порт (443)" p_port; p_port=${p_port:-443}
+                prompt_user "sni домен" p_sni; p_sni=${p_sni:-google.com}
+                prompt_user "имя администратора" p_user; p_user=${p_user:-admin}
+                printf "\n"; log_step "обновление кеша пакетов" "apt-get update -qq"
+                log_step "установка утилит" "apt-get install -y curl jq tar openssl net-tools wget -qq"
                 
                 local arch=$(uname -m); local libc=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
                 local url="https://github.com/telemt/telemt/releases/latest/download/telemt-$arch-linux-$libc.tar.gz"
-                log_step "Загрузка бинарных данных" "curl -L '$url' | tar -xz && mv telemt $T_BIN && chmod +x $T_BIN"
+                log_step "загрузка бинарных данных" "curl -L '$url' | tar -xz && mv telemt $T_BIN && chmod +x $T_BIN"
                 
                 mkdir -p $T_CONF_DIR/cache
-                log_step "Кэширование конфигов (IPv6)" "wget -6 -O $T_CONF_DIR/proxy-secret https://core.telegram.org/getProxySecret && wget -6 -O $T_CONF_DIR/proxy-multi.conf https://core.telegram.org/getProxyConfig && wget -6 -O $T_CONF_DIR/proxy-multi-v6.conf https://core.telegram.org/getProxyConfigV6"
+                log_step "кэширование конфигов (IPv6)" "wget -6 -O $T_CONF_DIR/proxy-secret https://core.telegram.org/getProxySecret && wget -6 -O $T_CONF_DIR/proxy-multi.conf https://core.telegram.org/getProxyConfig && wget -6 -O $T_CONF_DIR/proxy-multi-v6.conf https://core.telegram.org/getProxyConfigV6"
                 cp $T_CONF_DIR/proxy-* $T_CONF_DIR/cache/ 2>/dev/null
 
                 cat <<EOF > $T_CONF
@@ -190,86 +197,76 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
-                log_step "Старт службы в системе" "systemctl daemon-reload && systemctl enable --now telemt"
-                local ip=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "ВАШ_IP")
+                log_step "старт службы в системе" "systemctl daemon-reload && systemctl enable --now telemt"
+                local ip=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "0.0.0.0")
                 local lnk=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$p_user\") | .links.tls[]" 2>/dev/null)
-                printf "\n${L_IND}${BOLD}${C_SKY}Ключи доступа: ${C_MENU}$p_user${NC}\n"
+                printf "\n${L_IND}${BOLD}${C_SKY}ключи доступа: ${C_MENU}$p_user${NC}\n"
                 for l in $lnk; do echo -e "${L_IND}${BOLD}${C_MENU}${l//0.0.0.0/$ip}${NC}"; done
-                printf "\n"; prompt_user "Нажмите [Enter] для возврата" wait; continue ;;
-            2) menu_telemt_users ;;
-            3) printf "\n"; log_step "Запуск Telemt" "systemctl start telemt"; sleep 1 ;;
-            4) printf "\n"; log_step "Остановка Telemt" "systemctl stop telemt"; sleep 1 ;;
-            5) printf "\n"; log_step "Перезапуск Telemt" "systemctl restart telemt"; sleep 1 ;;
-            6) printf "\n"; if [ ! -f "$T_SERVICE" ]; then echo -e "${L_IND}${BOLD}${C_RED}!! Ошибка: сервис не установлен${NC}"; else journalctl -u telemt -n 50 --no-pager; fi; printf "\n"; prompt_user "Нажмите [Enter] для возврата" wait ;;
-            0) check_updates_background; break ;;
-        esac
-    done
-}
-
-menu_telemt_users() {
-     while true; do
-        printf "\033[H\033[J"
-        draw_header "ПОЛЬЗОВАТЕЛИ TELEMT"; echo ""; print_status; echo ""
-        if [ ! -f "$T_CONF" ]; then
-            echo -e "${L_IND}${BOLD}${C_RED}!! Ошибка: сервис не установлен${NC}\n"
-            echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Назад${NC}"; printf "\n"
-            prompt_user "Выберите" act; break
-        fi
-        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}Список пользователей и ссылки${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}Добавить нового пользователя${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}Удалить пользователя${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Назад${NC}"
-        printf "\n"; prompt_user "Действие" act
-        case "$act" in
-            1)  printf "\n"; mapfile -t U_LIST < <(sed -n '/\[access.users\]/,$p' "$T_CONF" | grep "=" | awk '{print $1}' | sort -u)
-                if [ ${#U_LIST[@]} -eq 0 ]; then
-                    echo -e "${L_IND}${BOLD}${C_YELLOW}Пользователи не найдены.${NC}"
-                else
-                    for i in "${!U_LIST[@]}"; do printf "${L_IND}${BOLD}${C_SKY}%d - ${NC}${BOLD}${C_MENU}%s${NC}\n" "$((i+1))" "${U_LIST[$i]}"; done
-                    printf "\n"; prompt_user "Номер пользователя (0 - назад)" uidx
-                    if [[ "$uidx" =~ ^[0-9]+$ ]] && [ "$uidx" -gt 0 ] && [ "$uidx" -le "${#U_LIST[@]}" ]; then
-                        local target="${U_LIST[$((uidx-1))]}"
-                        local ip=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "ВАШ_IP")
-                        local lnk=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target\") | .links.tls[]" 2>/dev/null)
-                        printf "\n${L_IND}${BOLD}${C_SKY}Ссылки для $target:${NC}\n"
-                        for l in $lnk; do echo -e "${L_IND}${BOLD}${C_MENU}${l//0.0.0.0/$ip}${NC}"; done
-                        printf "\n"; prompt_user "Нажмите [Enter]" wait; fi
-                fi ;;
-            2)  printf "\n"; prompt_user "Имя пользователя" nname
-                if [ -n "$nname" ]; then
-                    echo "$nname = \"$(openssl rand -hex 16)\"" >> "$T_CONF"
-                    log_step "Обновление базы" "systemctl restart telemt"; sleep 1; fi ;;
-            3)  printf "\n"; mapfile -t U_LIST < <(sed -n '/\[access.users\]/,$p' "$T_CONF" | grep "=" | awk '{print $1}' | sort -u)
-                for i in "${!U_LIST[@]}"; do printf "${L_IND}${BOLD}${C_SKY}%d - %s${NC}\n" "$((i+1))" "${U_LIST[$i]}"; done
-                printf "\n"; prompt_user "Номер для удаления (0 - назад)" uidx
-                if [[ "$uidx" =~ ^[0-9]+$ ]] && [ "$uidx" -gt 0 ] && [ "$uidx" -le "${#U_LIST[@]}" ]; then
-                    target="${U_LIST[$((uidx-1))]}"
-                    prompt_user "Удалить $target? (y/n)" cf
-                    if [[ "$cf" =~ ^[Yy]$ ]]; then
-                        sed -i "/^${target} =/d" "$T_CONF"
-                        log_step "Удаление $target" "systemctl restart telemt"; sleep 1; fi
-                fi ;;
+                printf "\n"; prompt_user "нажмите [Enter] для возврата" wait; continue ;;
+            2) printf "\n"; log_step "запуск" "systemctl start telemt"; sleep 1 ;;
+            3) printf "\n"; log_step "остановка" "systemctl stop telemt"; sleep 1 ;;
+            4) printf "\n"; log_step "перезапуск" "systemctl restart telemt"; sleep 1 ;;
+            5) menu_telemt_users ;;
+            6) printf "\n"; if [ ! -f "$T_SERVICE" ]; then echo -e "${L_IND}${BOLD}${C_RED}!! не установлен${NC}"; else journalctl -u telemt -n 50 --no-pager; fi; prompt_user "[Enter]" wait ;;
             0) break ;;
         esac
     done
 }
 
+# подменю пользователей (стиль beta)
+menu_telemt_users() {
+     while true; do
+        printf "\033[H\033[J"
+        draw_header "ПОЛЬЗОВАТЕЛИ TELEMT"; echo ""; print_status; echo ""
+        if [ ! -f "$T_CONF" ]; then break; fi
+        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}список пользователей и ссылки${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}добавить нового пользователя${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}удалить пользователя${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}назад${NC}"
+        printf "\n"; prompt_user "действие" act
+        case "$act" in
+            1)  printf "\n"; mapfile -t U_LIST < <(sed -n '/\[access.users\]/,$p' "$T_CONF" | grep "=" | awk '{print $1}' | sort -u)
+                if [ ${#U_LIST[@]} -eq 0 ]; then echo -e "${L_IND}${BOLD}${C_YELLOW}пусто${NC}"; else
+                    for i in "${!U_LIST[@]}"; do printf "${L_IND}${BOLD}${C_SKY}%d - ${NC}${BOLD}${C_MENU}%s${NC}\n" "$((i+1))" "${U_LIST[$i]}"; done
+                    printf "\n"; prompt_user "номер (0-назад)" uidx
+                    if [[ "$uidx" =~ ^[0-9]+$ ]] && [ "$uidx" -gt 0 ] && [ "$uidx" -le "${#U_LIST[@]}" ]; then
+                        local target="${U_LIST[$((uidx-1))]}"
+                        local ip=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "0.0.0.0")
+                        local lnk=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target\") | .links.tls[]" 2>/dev/null)
+                        printf "\n${L_IND}${BOLD}${C_SKY}ссылки $target:${NC}\n"
+                        for l in $lnk; do echo -e "${L_IND}${BOLD}${C_MENU}${l//0.0.0.0/$ip}${NC}"; done
+                        prompt_user "[Enter]" wait; fi
+                fi ;;
+            2)  prompt_user "имя" nname
+                [ -n "$nname" ] && echo "$nname = \"$(openssl rand -hex 16)\"" >> "$T_CONF" && log_step "обновление" "systemctl restart telemt" && sleep 1 ;;
+            3)  mapfile -t U_LIST < <(sed -n '/\[access.users\]/,$p' "$T_CONF" | grep "=" | awk '{print $1}' | sort -u)
+                for i in "${!U_LIST[@]}"; do printf "${L_IND}${BOLD}${C_SKY}%d - %s${NC}\n" "$((i+1))" "${U_LIST[$i]}"; done
+                prompt_user "номер для удаления" uidx
+                if [[ "$uidx" =~ ^[0-9]+$ ]] && [ "$uidx" -gt 0 ]; then
+                    target="${U_LIST[$((uidx-1))]}"
+                    sed -i "/^${target} =/d" "$T_CONF" && log_step "удаление" "systemctl restart telemt" && sleep 1; fi ;;
+            0) break ;;
+        esac
+    done
+}
+
+# менеджер zapret (alpha-структура)
 menu_zapret() {
     while true; do
         printf "\033[H\033[J"
         draw_header "МЕНЕДЖЕР ZAPRET"; echo ""; print_status; echo ""
-        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}Установить / обновить (Стратегия РФ)${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}Запустить службу${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}Остановить службу${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}Сменить локальный порт${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}5 - ${NC}${BOLD}${C_MENU}Просмотр логов${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}6 - ${NC}${BOLD}${C_MENU}Удалить Zapret${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Назад${NC}"
-        printf "\n"; prompt_user "Действие" act
+        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}установить / обновить (Стратегия РФ)${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}запустить службу${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}остановить службу${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}сменить локальный порт${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}5 - ${NC}${BOLD}${C_MENU}просмотр логов${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}6 - ${NC}${BOLD}${C_MENU}удалить Zapret из системы${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}назад${NC}"
+        printf "\n"; prompt_user "действие" act
         case "$act" in
-            1)  printf "\n"; prompt_user "Локальный порт (1080)" z_port; z_port=${z_port:-1080}
-                printf "\n"; log_step "Установка библиотек" "apt-get update -qq && apt-get install -y build-essential git -qq"
-                log_step "Сборка Zapret" "rm -rf $Z_DIR && git clone --depth=1 https://github.com/bol-van/zapret.git $Z_DIR && make -C $Z_DIR"
+            1)  printf "\n"; prompt_user "локальный порт (1080)" z_port; z_port=${z_port:-1080}
+                log_step "библиотеки" "apt-get update -qq && apt-get install -y build-essential git -qq"
+                log_step "сборка Zapret" "rm -rf $Z_DIR && git clone --depth=1 https://github.com/bol-van/zapret.git $Z_DIR && make -C $Z_DIR"
                 cat <<EOF > $Z_SERVICE
 [Unit]
 Description=Zapret TPWS Daemon
@@ -283,44 +280,46 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
-                log_step "Запуск в системе" "systemctl daemon-reload && systemctl enable --now zapret-tpws"
-                printf "\n"; prompt_user "Готово. [Enter]" wait ;;
-            2) printf "\n"; log_step "Запуск" "systemctl start zapret-tpws"; sleep 1 ;;
-            3) printf "\n"; log_step "Остановка" "systemctl stop zapret-tpws"; sleep 1 ;;
-            4) printf "\n"; prompt_user "Укажите новый порт" nport
+                log_step "регистрация" "systemctl daemon-reload && systemctl enable --now zapret-tpws"
+                prompt_user "готово. [Enter]" wait ;;
+            2) printf "\n"; log_step "запуск" "systemctl start zapret-tpws"; sleep 1 ;;
+            3) printf "\n"; log_step "остановка" "systemctl stop zapret-tpws"; sleep 1 ;;
+            4) printf "\n"; prompt_user "укажите новый порт" nport
                if [[ "$nport" =~ ^[0-9]+$ ]]; then
                    sed -i "s/--port=[0-9]*/--port=$nport/" "$Z_SERVICE"
-                   log_step "Применение порта" "systemctl daemon-reload && systemctl restart zapret-tpws"; sleep 1; fi ;;
+                   log_step "применение" "systemctl daemon-reload && systemctl restart zapret-tpws"; sleep 1; fi ;;
             5) printf "\n"; journalctl -u zapret-tpws -n 50 --no-pager; printf "\n"; prompt_user "[Enter]" wait ;;
-            6) printf "\n"; prompt_user "Удалить Zapret? (y/n)" cf
+            6) printf "\n"; prompt_user "полностью удалить? (y/n)" cf
                [[ "$cf" =~ ^[Yy]$ ]] && clear_zapret && sleep 1 ;;
             0) break ;;
         esac
     done
 }
 
-menu_maintenance() {
+# менеджер скрипта (alpha-структура)
+menu_script_manager() {
     while true; do
         printf "\033[H\033[J"
         draw_header "МЕНЕДЖЕР СКРИПТА"; echo ""; print_status; echo ""
         refresh_update_marker
-        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}Обновить скрипт${U_MARKER}${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}Удалить только Telemt${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}Удалить только Zapret${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}Удалить ВСЁ из системы${NC}"
-        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Назад${NC}"
-        printf "\n"; prompt_user "Действие" act
+        echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}обновить менеджер до v$REMOTE_VERSION${U_MARKER}${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}удалить только Telemt${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}удалить только Zapret${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}4 - ${NC}${BOLD}${C_MENU}удалить оба сервиса${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}5 - ${NC}${BOLD}${C_MENU}полное удаление всего (самоликвидация)${NC}"
+        echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}назад${NC}"
+        printf "\n"; prompt_user "выберите действие" act
         case "$act" in
-            1) printf "\n"; log_step "Обновление" "curl -sSL $REPO_URL -o $CLI_PATH && chmod +x $CLI_PATH"; sleep 1; exec "$CLI_PATH" ;;
-            2) printf "\n"; prompt_user "Удалить Telemt? (y/n)" cf
+            1) printf "\n"; log_step "скачивание" "curl -sSL $REPO_URL -o $CLI_PATH && chmod +x $CLI_PATH"; sleep 1; exec "$CLI_PATH" ;;
+            2) printf "\n"; prompt_user "удалить Telemt? (y/n)" cf
                [[ "$cf" =~ ^[Yy]$ ]] && clear_telemt && sleep 1 ;;
-            3) printf "\n"; prompt_user "Удалить Zapret? (y/n)" cf
+            3) printf "\n"; prompt_user "удалить Zapret? (y/n)" cf
                [[ "$cf" =~ ^[Yy]$ ]] && clear_zapret && sleep 1 ;;
-            4) printf "\n"; prompt_user "Полностью очистить систему? (y/n)" cf
+            4) printf "\n"; clear_telemt; clear_zapret; sleep 1 ;;
+            5) printf "\n"; prompt_user "ПОЛНОСТЬЮ очистить систему? (y/n)" cf
                if [[ "$cf" =~ ^[Yy]$ ]]; then
-                   printf "\n"; clear_telemt; clear_zapret
-                   log_step "Самоликвидация" "rm -f $CLI_PATH"
-                   clear; echo -e "${BOLD}${C_RED}Система очищена.${NC}"; exit 0; fi ;;
+                    clear_telemt; clear_zapret; rm -f "$CLI_PATH"
+                    clear; echo -e "${BOLD}${C_RED}инфраструктура очищена.${NC}"; exit 0; fi ;;
             0) break ;;
         esac
     done
@@ -342,15 +341,15 @@ while true; do
     echo -e "${L_IND}${BOLD}${C_SKY}1 - ${NC}${BOLD}${C_MENU}$M_MAIN_1${NC}"
     echo -e "${L_IND}${BOLD}${C_SKY}2 - ${NC}${BOLD}${C_MENU}$M_MAIN_2${NC}"
     echo -e "${L_IND}${BOLD}${C_SKY}3 - ${NC}${BOLD}${C_MENU}$M_MAIN_3$U_MARKER${NC}"
-    echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}Выход${NC}"
+    echo -e "${L_IND}${BOLD}${C_SKY}0 - ${NC}${BOLD}${C_MENU}$M_MAIN_0${NC}"
     
     printf "\n"
-    prompt_user "Раздел" main_sel
+    prompt_user "выберите раздел" main_sel
     
     case "$main_sel" in
         1) menu_telemt ;;
         2) menu_zapret ;;
-        3) menu_maintenance ;;
+        3) menu_script_manager ;;
         0) clear; exit 0 ;;
         *) check_updates_background ;;
     esac
