@@ -2,39 +2,35 @@
 
 # ==============================================================================
 # СИСТЕМА УПРАВЛЕНИЯ ПРОКСИ-СЕРВИСАМИ «СТАЛИН-3000»
-# Версия: 1.4.8 (SSD Engine - Stalin Stability Drive)
+# Версия: 1.4.9 (Color Standards & Intuitive Input)
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# 1. Параметры и Цветовая схема
+# 1. Окружение и Цветовая Палитра
 # ------------------------------------------------------------------------------
-CURRENT_VERSION="1.4.8"
+CURRENT_VERSION="1.4.9"
 REPO_URL="https://raw.githubusercontent.com/jaywehosl/auto_telemt/refs/heads/main/beta_install.sh"
 
-L_IND="  " # Стандартный отступ (2 пробела)
+L_IND="  " # Глобальный отступ интерфейса
 
 BOLD=$(tput bold)
 NC='\033[0m' 
-MAIN_COLOR='\033[38;5;148m' # Салатовый (Рамки)
-ORANGE='\033[1;38;5;214m'  # Оранжевый (Промпты >>)
-SKY_BLUE='\033[1;38;5;81m' # Голубой (Индексы [ 1 ])
-GREEN='\033[1;32m'         # Зеленый (Работает)
-RED='\033[1;31m'           # Красный (Нет/Ошибка)
-YELLOW='\033[1;33m'        # Желтый (Стоп)
+MAIN_COLOR='\033[38;5;148m' # Салатовый (Рамки, Скобки)
+ORANGE='\033[1;38;5;214m'  # Оранжевый (Пункты меню, Промпты)
+SKY_BLUE='\033[1;38;5;81m' # Голубой (Индексы цифр)
+WHITE='\033[1;37m'         # Чистый белый (Жирный текст инфо)
+GREEN='\033[1;32m'         # Зеленый (Работает / Да)
+RED='\033[1;31m'           # Красный (Нет / Ошибка)
+YELLOW='\033[1;33m'        # Желтый (Внимание)
 
 L_MENU_HEADER="СТАЛИН-3000"
-L_MAIN_1="управление сервисом Telemt"
-L_MAIN_2="управление пользователями Telemt"
-L_MAIN_3="настройки Telemt"
-L_MAIN_4="управление Zapret (TPWS)"
-L_MAIN_5="обслуживание менеджера"
-L_MAIN_0="выход"
+L_STATUS_T="статус Telemt:"
+L_STATUS_Z="статус Zapret:"
 
-# Кадры пульса (Spinner)
 HB_FRAMES=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
 HB_IDX=0
 
-# Пути
+# Системные пути
 BIN_PATH="/bin/telemt"
 CONF_DIR="/etc/telemt"
 CONF_FILE="$CONF_DIR/telemt.toml"
@@ -43,87 +39,84 @@ CLI_NAME="/usr/local/bin/telemt"
 ZAPRET_DIR="/opt/zapret"
 ZAPRET_SERVICE="/etc/systemd/system/zapret-tpws.service"
 
-# Инициализация (Скрытие курсора, уборка при выходе)
-tput civis
+# Трап для чистого выхода (восстанавливает курсор)
 trap 'tput cnorm; clear; exit' INT TERM EXIT
 
 if [ "$EUID" -ne 0 ]; then echo -e "${RED}Ошибка: Нужен root.${NC}"; exit 1; fi
 
 # ------------------------------------------------------------------------------
-# 2. UI Движок (SSD Engine)
+# 2. Движок интерфейса (SSD Engine)
 # ------------------------------------------------------------------------------
 
+# Универсальный заголовок
 draw_header() {
     local title="$1"
     local width=44
-    local padding=$(( (width - ${#title}) / 2 ))
-    local extra=$(( (width - ${#title}) % 2 ))
+    local p=$(( (width - ${#title}) / 2 ))
+    local e=$(( (width - ${#title}) % 2 ))
     printf "${BOLD}${MAIN_COLOR}╔"
     for ((i=0; i<width; i++)); do printf "═"; done
     printf "╗${NC}\n"
-    printf "${BOLD}${MAIN_COLOR}║${NC}%*s%s%*s${BOLD}${MAIN_COLOR}║${NC}\n" "$padding" "" "$title" "$((padding + extra))" ""
+    printf "${BOLD}${MAIN_COLOR}║${NC}%*s%s%*s${BOLD}${MAIN_COLOR}║${NC}\n" "$p" "" "$title" "$((p + e))" ""
     printf "${BOLD}${MAIN_COLOR}╚"
     for ((i=0; i<width; i++)); do printf "═"; done
     printf "╝${NC}\n"
 }
 
-# Функция отрисовки статуса с пульсом
-# Вызывается внутри цикла ввода, прыгает курсором на строки 5 и 6
-render_status_block() {
-    printf "\033[s"      # Сохранить позицию курсора (там где ввод пользователя)
-    printf "\033[H\033[4B" # Прыгнуть в начало, затем на 4 строки вниз
+# Отрисовка статусов с цветным пульсом (прыгает курсором)
+render_pulse_status() {
+    printf "\033[s"        # Сохранить курсор
+    printf "\033[H\033[4B" # Домой, потом 4 строки вниз
 
     HB_IDX=$(( (HB_IDX + 1) % ${#HB_FRAMES[@]} ))
-    local spinner="${HB_FRAMES[$HB_IDX]}"
+    local sp="${HB_FRAMES[$HB_IDX]}"
 
-    # Статус Telemt
-    local s1 color1
-    if [ ! -f "$SERVICE_FILE" ]; then s1="не установлен"; color1="$RED"
-    elif systemctl is-active --quiet telemt; then s1="работает"; color1="$GREEN"
-    else s1="остановлен"; color1="$YELLOW"; fi
-    printf "${L_IND}%-16s %b%s %b%s${NC}\033[K\n" "статус Telemt:" "$color1" "$s1" "$color1" "$spinner"
+    local s1 c1
+    if [ ! -f "$SERVICE_FILE" ]; then s1="не установлен"; c1="$RED"
+    elif systemctl is-active --quiet telemt; then s1="работает"; c1="$GREEN"
+    else s1="остановлен"; c1="$YELLOW"; fi
+    printf "${L_IND}%-16s %b%s %b%s${NC}\033[K\n" "$L_STATUS_T" "$c1" "$s1" "$c1" "$sp"
 
-    # Статус Zapret
-    local s2 color2
-    if [ ! -f "$ZAPRET_SERVICE" ]; then s2="не установлен"; color2="$RED"
-    elif systemctl is-active --quiet zapret-tpws; then s2="работает"; color2="$GREEN"
-    else s2="остановлен"; color2="$YELLOW"; fi
-    printf "${L_IND}%-16s %b%s %b%s${NC}\033[K\n" "статус Zapret:" "$color2" "$s2" "$color2" "$spinner"
+    local s2 c2
+    if [ ! -f "$ZAPRET_SERVICE" ]; then s2="не установлен"; c2="$RED"
+    elif systemctl is-active --quiet zapret-tpws; then s2="работает"; c2="$GREEN"
+    else s2="остановлен"; c2="$YELLOW"; fi
+    printf "${L_IND}%-16s %b%s %b%s${NC}\033[K\n" "$L_STATUS_Z" "$c2" "$s2" "$c2" "$sp"
 
-    printf "\033[u" # Вернуть курсор на место ввода
+    printf "\033[u" # Вернуть курсор
 }
 
-# Глобальный обработчик ввода (Stalin Stability Drive)
-# $1 - текст промпта, $2 - имя переменной
+# Stalin Stability Drive (SSD) - Посимвольное чтение ввода с пульсом
 get_input() {
-    local prompt_text="${L_IND}${BOLD}${ORANGE}>> $1: ${NC}"
-    local current_input=""
+    local prompt_text="$1"
+    local var_name="$2"
+    local current=""
     local char
     
-    printf "%s" "$prompt_text"
+    # Раскраска y/n если они есть в тексте промпта
+    local colored_prompt=$(echo -e "$prompt_text" | sed "s/y\//${GREEN}y${NC}\//g" | sed "s/\/n/${NC}\/${RED}n${NC}/g")
+    
+    printf "${L_IND}${BOLD}${ORANGE}>> %b: ${NC}" "$colored_prompt"
     tput cnorm
     while true; do
-        render_status_block
-        # Читаем 1 символ с коротким таймаутом (0.1 сек) для плавной анимации
+        render_pulse_status
         if IFS= read -r -s -n 1 -t 0.1 char; then
-            # Нажат Enter (пустая строка или null)
-            if [[ -z "$char" ]]; then
-                echo "" # Переход на новую строку
+            if [[ -z "$char" ]]; then # Enter
+                echo ""
                 break
             fi
-            # Нажат Backspace (код 127 или 8)
-            if [[ "$char" == $'\177' || "$char" == $'\010' ]]; then
-                if [ ${#current_input} -gt 0 ]; then
-                    current_input="${current_input%?}"
-                    printf "\b \b" # Визуально стираем символ
+            if [[ "$char" == $'\177' || "$char" == $'\010' ]]; then # Backspace
+                if [ ${#current} -gt 0 ]; then
+                    current="${current%?}"
+                    printf "\b \b"
                 fi
             else
-                current_input+="$char"
-                printf "%s" "$char" # Выводим вводимый символ
+                current+="$char"
+                printf "%s" "$char"
             fi
         fi
     done
-    eval "$2=\"$current_input\""
+    eval "$var_name=\"$current\""
     tput civis
 }
 
@@ -133,27 +126,53 @@ msg_step() {
     if eval "$2" > /dev/null 2>&1; then printf "${GREEN}[готово]${NC}\n"; else printf "${RED}[ошибка]${NC}\n"; return 1; fi
 }
 
-msg_error() { echo -e "\n${L_IND}${RED}${BOLD}!! ОШИБКА: ${NC}${BOLD}$1${NC}"; }
+# ------------------------------------------------------------------------------
+# 3. Вспомогательная логика
+# ------------------------------------------------------------------------------
+
+check_updates() {
+    local remote
+    remote=$(curl -sSL -f --connect-timeout 2 "${REPO_URL}" | grep "^CURRENT_VERSION=" | head -n 1 | cut -d'"' -f2)
+    if [[ -n "$remote" && "$remote" != "$CURRENT_VERSION" ]]; then
+        UPDATE_MARKER="${SKY_BLUE} (*)${NC}"
+        REMOTE_VERSION="$remote"
+        HAS_UPDATE=true
+    else
+        UPDATE_MARKER=""
+        HAS_UPDATE=false
+    fi
+}
+
+wait_user() {
+    printf "\n${L_IND}${SKY_BLUE}${BOLD}нажмите [Enter] для продолжения...${NC}"
+    tput cnorm; read -r; tput civis
+}
 
 # ------------------------------------------------------------------------------
-# 3. Логика Подменю
+# 4. Подменю
 # ------------------------------------------------------------------------------
+
+# Шаблон отрисовки пунктов (для экономии кода)
+# $1 - номер, $2 - текст
+print_item() {
+    printf "${L_IND}${BOLD}${MAIN_COLOR}[ ${SKY_BLUE}%s ${MAIN_COLOR}]${NC} ${BOLD}${ORANGE}%s${NC}\n" "$1" "$2"
+}
 
 submenu_service() {
     while true; do
         clear; draw_header "УПРАВЛЕНИЕ TELEMT"
-        echo -e "\n\n" # Место под живые статусы
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}установить Telemt${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 2 ]${NC} ${BOLD}перезапустить службу${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 3 ]${NC} ${BOLD}остановить службу${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 0 ]${NC} ${BOLD}назад${NC}"
+        echo -e "\n\n" # Статусы
+        print_item "1" "установить Telemt"
+        print_item "2" "перезапустить службу"
+        print_item "3" "остановить службу"
+        print_item "0" "назад"
         echo ""
         get_input "действие" sc
         case $sc in
             1)  echo ""; get_input "порт (443)" P_PORT; P_PORT=${P_PORT:-443}
                 get_input "SNI (google.com)" P_SNI; P_SNI=${P_SNI:-google.com}
                 get_input "имя админа" P_USER; P_USER=${P_USER:-admin}
-                msg_step "Зависимости" "apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
+                msg_step "Пакеты" "apt-get update -qq && apt-get install -y curl jq tar openssl net-tools -qq"
                 local ARCH=$(uname -m); local LIBC=$(ldd --version 2>&1 | grep -iq musl && echo musl || echo gnu)
                 local URL="https://github.com/telemt/telemt/releases/latest/download/telemt-$ARCH-linux-$LIBC.tar.gz"
                 msg_step "Загрузка" "curl -L '$URL' | tar -xz && mv telemt $BIN_PATH && chmod +x $BIN_PATH"
@@ -184,7 +203,7 @@ Restart=on-failure
 WantedBy=multi-user.target
 EOF
                 msg_step "Запуск" "systemctl daemon-reload && systemctl enable telemt && systemctl restart telemt"
-                printf "\n${L_IND}${SKY_BLUE}нажмите [Enter]...${NC}"; read; continue ;;
+                wait_user; continue ;;
             2) msg_step "Перезапуск" "systemctl restart telemt"; sleep 1; continue ;;
             3) msg_step "Остановка" "systemctl stop telemt"; sleep 1; continue ;;
             0) break ;;
@@ -195,24 +214,24 @@ EOF
 submenu_users() {
     while true; do
         clear; draw_header "ПОЛЬЗОВАТЕЛИ TELEMT"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "\n\n"; msg_error "Telemt не установлен."; sleep 2; return; fi
+        if [ ! -f "$CONF_FILE" ]; then echo -e "\n\n"; echo -e "${L_IND}${RED}!! Telemt не установлен.${NC}"; sleep 2; return; fi
         echo -e "\n\n"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}список и ссылки${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 2 ]${NC} ${BOLD}добавить пользователя${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 0 ]${NC} ${BOLD}назад${NC}"
+        print_item "1" "список и ссылки"
+        print_item "2" "добавить пользователя"
+        print_item "0" "назад"
         echo ""
         get_input "действие" sc
         case $sc in
             1)  echo ""; mapfile -t USERS < <(sed -n '/\[access.users\]/,$p' "$CONF_FILE" | grep "=" | awk '{print $1}' | sort -u)
-                for i in "${!USERS[@]}"; do printf "${L_IND}  ${BOLD}${SKY_BLUE}%d.${NC} ${BOLD}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
-                printf "\n${L_IND}${ORANGE}номер пользователя [0-назад]: ${NC}"; tput cnorm; read uidx; tput civis
+                for i in "${!USERS[@]}"; do printf "${L_IND}  ${BOLD}${SKY_BLUE}%d.${NC} ${WHITE}%s${NC}\n" "$((i+1))" "${USERS[$i]}"; done
+                echo ""; get_input "номер пользователя [0-назад]" uidx
                 if [[ "$uidx" =~ ^[0-9]+$ ]] && [ "$uidx" -gt 0 ] && [ "$uidx" -le "${#USERS[@]}" ]; then
                     local target="${USERS[$((uidx-1))]}"
                     local IP4=$(curl -4 -s --max-time 2 https://api.ipify.org || echo "IP_ERR")
                     local LINKS=$(curl -s http://127.0.0.1:9091/v1/users | jq -r ".data[] | select(.username == \"$target\") | .links.tls[]" 2>/dev/null)
-                    echo -e "\n${L_IND}${BOLD}${SKY_BLUE}Ключи для $target:${NC}"
-                    for l in $LINKS; do echo -e "${L_IND}  ${BOLD}${MAIN_COLOR}${l//0.0.0.0/$IP4}${NC}"; done
-                    printf "\n${L_IND}${SKY_BLUE}нажмите [Enter]...${NC}"; read
+                    echo -e "\n${L_IND}${WHITE}Ключи доступа для $target:${NC}"
+                    for l in $LINKS; do echo -e "${L_IND}  ${MAIN_COLOR}${l//0.0.0.0/$IP4}${NC}"; done
+                    wait_user
                 fi; continue ;;
             2)  echo ""; get_input "имя нового пользователя" uname
                 if [[ -n "$uname" ]]; then
@@ -227,17 +246,16 @@ submenu_users() {
 submenu_settings() {
     while true; do
         clear; draw_header "НАСТРОЙКИ TELEMT"
-        if [ ! -f "$CONF_FILE" ]; then echo -e "\n\n"; msg_error "Telemt не установлен."; sleep 2; return; fi
+        if [ ! -f "$CONF_FILE" ]; then echo -e "\n\n"; echo -e "${L_IND}${RED}!! Telemt не установлен.${NC}"; sleep 2; return; fi
         echo -e "\n\n"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}логи системы (journalctl)${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 2 ]${NC} ${BOLD}сменить порт${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 3 ]${NC} ${BOLD}сменить SNI домен${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 0 ]${NC} ${BOLD}назад${NC}"
+        print_item "1" "логи системы (journalctl)"
+        print_item "2" "сменить порт"
+        print_item "3" "сменить SNI домен"
+        print_item "0" "назад"
         echo ""
         get_input "действие" sc
         case $sc in
-            1) echo ""; tput cnorm; journalctl -u telemt -n 50 --no-pager; tput civis
-               printf "\n${L_IND}${SKY_BLUE}нажмите [Enter]...${NC}"; read; continue ;;
+            1) echo ""; tput cnorm; journalctl -u telemt -n 50 --no-pager; tput civis; wait_user; continue ;;
             2) echo ""; get_input "новый порт" np
                if [[ $np =~ ^[0-9]+$ ]]; then sed -i "s/^port = .*/port = $np/" $CONF_FILE && systemctl restart telemt; fi; continue ;;
             3) echo ""; get_input "новый SNI" ns
@@ -251,11 +269,11 @@ submenu_zapret() {
     while true; do
         clear; draw_header "УПРАВЛЕНИЕ ZAPRET"
         echo -e "\n\n"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}установить / обновить${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 2 ]${NC} ${BOLD}запустить службу${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 3 ]${NC} ${BOLD}остановить службу${NC}"
-        echo -e "${L_IND}${BOLD}${RED}[ 4 ]${NC} ${BOLD}удалить из системы${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 0 ]${NC} ${BOLD}назад${NC}"
+        print_item "1" "установить / обновить"
+        print_item "2" "запустить службу"
+        print_item "3" "остановить службу"
+        print_item "4" "удалить из системы"
+        print_item "0" "назад"
         echo ""
         get_input "действие" sc
         case $sc in
@@ -275,7 +293,7 @@ Restart=always
 WantedBy=multi-user.target
 EOF
                 msg_step "Активация" "systemctl daemon-reload && systemctl enable zapret-tpws && systemctl restart zapret-tpws"
-                sleep 2; continue ;;
+                wait_user; continue ;;
             2) msg_step "Запуск" "systemctl start zapret-tpws"; sleep 1; continue ;;
             3) msg_step "Остановка" "systemctl stop zapret-tpws"; sleep 1; continue ;;
             4) echo ""; get_input "удалить Zapret? [y/n]" confirm
@@ -290,15 +308,14 @@ submenu_manager() {
     while true; do
         clear; draw_header "ОБСЛУЖИВАНИЕ"
         echo -e "\n\n"
-        local remote=$(curl -sSL -f --connect-timeout 2 "${REPO_URL}" | grep "^CURRENT_VERSION=" | head -n 1 | cut -d'"' -f2)
-        if [[ -n "$remote" && "$remote" != "$CURRENT_VERSION" ]]; then
-            echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}ОБНОВИТЬ ДО ${GREEN}$remote${NC}"
+        if [ "$HAS_UPDATE" = true ]; then
+            print_item "1" "ОБНОВИТЬ ДО $REMOTE_VERSION"
         else
-            echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}переустановить менеджер${NC}"
+            print_item "1" "переустановить менеджер"
         fi
-        echo -e "${L_IND}${BOLD}${RED}[ 2 ]${NC} ${BOLD}удалить Telemt${NC}"
-        echo -e "${L_IND}${BOLD}${RED}[ 3 ]${NC} ${BOLD}полная очистка системы${NC}"
-        echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 0 ]${NC} ${BOLD}назад${NC}"
+        print_item "2" "удалить Telemt"
+        print_item "3" "полная очистка системы"
+        print_item "0" "назад"
         echo ""
         get_input "действие" sc
         case $sc in
@@ -318,21 +335,21 @@ submenu_manager() {
 }
 
 # ------------------------------------------------------------------------------
-# 4. Главный цикл
+# 5. Главный Цикл
 # ------------------------------------------------------------------------------
 
 while true; do
+    check_updates
     clear
     draw_header "$L_MENU_HEADER (v$CURRENT_VERSION)"
     echo -e "\n\n" # Резерв под статусы
-    echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 1 ]${NC} ${BOLD}${L_MAIN_1}${NC}"
-    echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 2 ]${NC} ${BOLD}${L_MAIN_2}${NC}"
-    echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 3 ]${NC} ${BOLD}${L_MAIN_3}${NC}"
-    echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 4 ]${NC} ${BOLD}${L_MAIN_4}${NC}"
-    echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 5 ]${NC} ${BOLD}${L_MAIN_5}${NC}"
-    echo -e "${L_IND}${BOLD}${SKY_BLUE}[ 0 ]${NC} ${BOLD}${L_MAIN_0}${NC}"
+    print_item "1" "$L_MAIN_1"
+    print_item "2" "$L_MAIN_2"
+    print_item "3" "$L_MAIN_3"
+    print_item "4" "$L_MAIN_4"
+    print_item "5" "${L_MAIN_5}${UPDATE_MARKER}"
+    print_item "0" "$L_MAIN_0"
     echo ""
-    
     get_input "выберите раздел" mainchoice
     case $mainchoice in
         1) submenu_service ;;
